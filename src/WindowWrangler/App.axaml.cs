@@ -14,6 +14,8 @@ public partial class App : Application
     LayoutsWindow? _layoutsWindow;
     SettingsWindow? _settingsWindow;
     Hotkey? _editorHotkey;
+    readonly List<Hotkey> _quickKeys = [];
+    ArrowKeyHook? _arrowKeys;
 
     public override void Initialize()
     {
@@ -30,6 +32,8 @@ public partial class App : Application
             {
                 _watcher?.Dispose();
                 _editorHotkey?.Dispose();
+                _arrowKeys?.Dispose();
+                foreach (var hotkey in _quickKeys) hotkey.Dispose();
             };
 
             LoadSettings();
@@ -42,6 +46,7 @@ public partial class App : Application
             if (!_editorHotkey.IsRegistered) Log.Write("Win+Shift+` is taken by another app (FancyZones?), so it won't open the editor.");
 
             if (StartupItem() is { } startup) startup.IsChecked = Startup.IsEnabled;
+            ApplySettings();
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -63,6 +68,53 @@ public partial class App : Application
         {
             Log.Write($"Couldn't save settings: {ex.Message}");
         }
+        ApplySettings();
+    }
+
+    // Things that hang off settings rather than reading them as they go.
+    void ApplySettings()
+    {
+        _watcher?.LayoutsChanged();
+        RegisterQuickKeys();
+
+        if (_settings.OverrideWinArrows && _arrowKeys is null && _watcher is not null)
+        {
+            _arrowKeys = new ArrowKeyHook(_watcher.MoveInDirection);
+            if (!_arrowKeys.IsInstalled) Log.Write("Couldn't hook Win+arrow keys.");
+        }
+        else if (!_settings.OverrideWinArrows && _arrowKeys is not null)
+        {
+            _arrowKeys.Dispose();
+            _arrowKeys = null;
+        }
+    }
+
+    // Win+Ctrl+Alt+number for each layout that has a quick key.
+    void RegisterQuickKeys()
+    {
+        foreach (var hotkey in _quickKeys) hotkey.Dispose();
+        _quickKeys.Clear();
+        foreach (var layout in _settings.UserLayouts.Where(l => l.QuickKey is not null))
+        {
+            int key = layout.QuickKey!.Value;
+            var hotkey = new Hotkey(Native.MOD_WIN | Native.MOD_CONTROL | Native.MOD_ALT, (uint)('0' + key), () => QuickSwitch(key));
+            if (!hotkey.IsRegistered) Log.Write($"Win+Ctrl+Alt+{key} is taken by another app.");
+            _quickKeys.Add(hotkey);
+        }
+    }
+
+    // Applies the layout to the monitor with the active window (or the one a window is being dragged on).
+    void QuickSwitch(int key)
+    {
+        if (_settings.FindQuickKey(key) is not { } layout) return;
+        var foreground = Native.GetForegroundWindow();
+        var monitor = foreground != IntPtr.Zero ? Monitors.FromWindow(foreground) : Monitors.FromHandle(Monitors.HandleAtCursor());
+
+        _settings.MonitorLayouts[monitor.Id] = layout.Id;
+        SaveSettings();
+        _layoutsWindow?.Refresh();
+        ZoneOverlayWindow.Flash(monitor, layout.GetZones(monitor.WorkArea));
+        Log.Write($"Switched monitor {monitor.Number} to {layout.Name}.");
     }
 
     void ShowLayouts()
@@ -112,6 +164,7 @@ public partial class App : Application
     void ReloadSettings_Click(object? sender, EventArgs e)
     {
         LoadSettings();
+        ApplySettings();
         _layoutsWindow?.Refresh();
         Log.Write("Settings reloaded.");
     }

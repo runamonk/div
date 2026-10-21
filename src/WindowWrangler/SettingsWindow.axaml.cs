@@ -21,6 +21,9 @@ public partial class SettingsWindow : Window
 
         StartWithWindowsBox.IsChecked = Startup.IsEnabled;
         SnapWithShiftBox.IsChecked = settings.SnapWithShift;
+        RestoreSizeBox.IsChecked = settings.RestoreSizeOnUnsnap;
+        EdgeReachBox.Value = settings.EdgeReach;
+        WinArrowsBox.IsChecked = settings.OverrideWinArrows;
         RestoreLastKnownBox.IsChecked = settings.RestoreLastKnown;
         ThresholdSlider.Value = Math.Round(settings.MatchThreshold * 100);
         ThresholdText.Text = $"{ThresholdSlider.Value:0}%";
@@ -32,6 +35,9 @@ public partial class SettingsWindow : Window
     void Save_Click(object? sender, RoutedEventArgs e)
     {
         _settings.SnapWithShift = SnapWithShiftBox.IsChecked == true;
+        _settings.RestoreSizeOnUnsnap = RestoreSizeBox.IsChecked == true;
+        _settings.EdgeReach = (int)(EdgeReachBox.Value ?? 0);
+        _settings.OverrideWinArrows = WinArrowsBox.IsChecked == true;
         _settings.RestoreLastKnown = RestoreLastKnownBox.IsChecked == true;
         _settings.MatchThreshold = ThresholdSlider.Value / 100;
         _settings.Tolerance = (int)(ToleranceBox.Value ?? 0);

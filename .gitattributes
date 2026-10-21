@@ -1,0 +1,8 @@
+# LF everywhere, in the repo and on disk, so every tool agrees and git stops warning.
+* text=auto eol=lf
+
+# Batch files misbehave with LF.
+*.cmd text eol=crlf
+
+*.png binary
+*.ico binary

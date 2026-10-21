@@ -7,7 +7,9 @@ namespace WindowWrangler;
 // Watches windows come, go and get dragged.
 //  - New windows: wait for them to stop moving, then nudge them into the zone they're nearly in,
 //    or, if they opened nowhere near one, put them back where that app last sat.
-//  - Dragged windows: snap to the zone picked on the overlay.
+//  - Dragged windows: snap to the zone picked on the overlay, or go back to their own size when
+//    dragged out of one.
+//  - Win+arrow: move the active window to the next zone that way.
 //  - Either way, remember where each app's windows end up.
 sealed class WindowWatcher : IDisposable
 {
@@ -35,8 +37,11 @@ sealed class WindowWatcher : IDisposable
     readonly AppHistory _history = AppHistory.Load(AppPaths.HistoryFile);
     // The history spot each open window is sitting in, so moving it updates rather than adds.
     readonly Dictionary<IntPtr, (string App, Placement Placement)> _owned = [];
+    // Windows we've put in a zone, and the size they were before, for putting it back.
+    readonly Dictionary<IntPtr, (Rect Zone, int Width, int Height)> _snapped = [];
     IntPtr _showHook, _moveHook, _dragging;
     Rect _dragStart;
+    bool _dragWasSnapped;
 
     public bool Paused { get; set; }
 
@@ -68,6 +73,7 @@ sealed class WindowWatcher : IDisposable
                 _handled.Remove(hwnd);
                 _pending.Remove(hwnd);
                 _owned.Remove(hwnd); // The history spot stays; that's the point.
+                _snapped.Remove(hwnd);
                 return;
             case EVENT_SYSTEM_MOVESIZESTART:
                 DragStarted(hwnd);
@@ -170,10 +176,13 @@ sealed class WindowWatcher : IDisposable
 
     void DragStarted(IntPtr hwnd)
     {
-        if (Paused || !IsManaged(hwnd, out _)) return;
+        if (Paused || !IsManaged(hwnd, out _, allowMaximized: true)) return;
         _dragging = hwnd;
         _dragStart = WindowOps.GetVisibleFrame(hwnd);
-        _snapper.Begin();
+        // Resized since we snapped it? Then the user has taken over its size.
+        _dragWasSnapped = _snapped.TryGetValue(hwnd, out var snapped) && snapped.Zone.NearlyEquals(_dragStart, _settings().Tolerance);
+        if (!_dragWasSnapped) _snapped.Remove(hwnd);
+        _snapper.Begin(hwnd);
     }
 
     void DragEnded(IntPtr hwnd)
@@ -197,21 +206,62 @@ sealed class WindowWatcher : IDisposable
         var monitor = Monitors.FromWindow(hwnd);
         var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
         if (ZoneMatcher.FindBest(dropped, zones, settings.MatchThreshold) is { } near && near.NearlyEquals(dropped, settings.Tolerance))
+        {
             Remember(hwnd, monitor, near);
-        else
-            Forget(hwnd);
+            return;
+        }
+
+        Forget(hwnd);
+        if (_dragWasSnapped && settings.RestoreSizeOnUnsnap && _snapped.Remove(hwnd, out var before))
+            RestoreSize(hwnd, dropped, before.Width, before.Height);
     }
 
-    bool IsManaged(IntPtr hwnd, out string name)
+    // Shrink (or grow) back to the old size around the cursor, so the bit you grabbed stays under it.
+    static void RestoreSize(IntPtr hwnd, Rect dropped, int width, int height)
+    {
+        var (x, _) = WindowOps.CursorPosition();
+        double grabbed = dropped.Width > 0 ? (x - dropped.Left) / (double)dropped.Width : 0.5;
+        int left = (int)(x - grabbed * width);
+        WindowOps.MoveVisibleFrameTo(hwnd, new Rect(left, dropped.Top, left + width, dropped.Top + height));
+    }
+
+    // Win+arrow. Zones on every monitor count, so it walks off one screen onto the next.
+    // Returns false when there's nothing that way, and Windows gets the key instead.
+    public bool MoveInDirection(Direction direction)
+    {
+        var hwnd = GetForegroundWindow();
+        if (Paused || !IsManaged(hwnd, out var name)) return false;
+
+        var settings = _settings();
+        var frame = WindowOps.GetVisibleFrame(hwnd);
+        var zones = Monitors.All().SelectMany(m => settings.LayoutFor(m.Id)?.GetZones(m.WorkArea) ?? []).ToList();
+        if (ZoneMatcher.Neighbour(frame, zones, direction, settings.Tolerance) is not { } zone) return false;
+
+        Move(hwnd, name, frame, zone, "keyboard");
+        Remember(hwnd, Monitors.FromPoint((zone.Left + zone.Right) / 2, (zone.Top + zone.Bottom) / 2), zone);
+        // Crossing to a monitor with different scaling can leave it a little off; tidy up once it lands.
+        DispatcherTimer.RunOnce(() => { if (IsWindow(hwnd)) Correct(hwnd); }, TimeSpan.FromMilliseconds(RecheckMs));
+        return true;
+    }
+
+    // Layouts were changed or switched; a drag in progress should show the new zones.
+    public void LayoutsChanged() => _snapper.Refresh();
+
+    bool IsManaged(IntPtr hwnd, out string name, bool allowMaximized = false)
     {
         name = "";
-        if (!WindowOps.IsCandidate(hwnd)) return false;
+        if (!WindowOps.IsCandidate(hwnd, allowMaximized)) return false;
         name = WindowOps.GetProcessName(hwnd);
         return !_settings().IsExcluded(name);
     }
 
-    static void Move(IntPtr hwnd, string name, Rect from, Rect to, string why)
+    void Move(IntPtr hwnd, string name, Rect from, Rect to, string why)
     {
+        // Keep the size from before the first snap; moving between zones shouldn't overwrite it.
+        int width = from.Width, height = from.Height;
+        if (_snapped.TryGetValue(hwnd, out var earlier)) (width, height) = (earlier.Width, earlier.Height);
+        _snapped[hwnd] = (to, width, height);
+
         WindowOps.MoveVisibleFrameTo(hwnd, to);
         Log.Write($"{name}: {why} {from} -> {to}");
     }

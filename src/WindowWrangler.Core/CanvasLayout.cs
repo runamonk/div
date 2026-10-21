@@ -33,7 +33,7 @@ public sealed class CanvasLayout : ZoneLayout
         return error is null;
     }
 
-    public override CanvasLayout Clone() => new() { Id = Id, Name = Name, Zones = [.. Zones] };
+    public override CanvasLayout Clone() => new() { Id = Id, Name = Name, QuickKey = QuickKey, Zones = [.. Zones] };
 
     // New zones land in the middle, stepped so they don't hide exactly behind the last one.
     public int AddZone()

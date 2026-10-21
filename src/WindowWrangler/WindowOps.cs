@@ -8,9 +8,10 @@ namespace WindowWrangler;
 static class WindowOps
 {
     // Normal resizable app windows only: no dialogs, popups, tool windows or hidden UWP frames.
-    public static bool IsCandidate(IntPtr hwnd)
+    // Maximized windows are skipped unless asked: dragging one un-maximizes it, so that's fine to snap.
+    public static bool IsCandidate(IntPtr hwnd, bool allowMaximized = false)
     {
-        if (!IsWindowVisible(hwnd) || IsIconic(hwnd) || IsZoomed(hwnd)) return false;
+        if (!IsWindowVisible(hwnd) || IsIconic(hwnd) || (IsZoomed(hwnd) && !allowMaximized)) return false;
         if (GetAncestor(hwnd, GA_ROOT) != hwnd || GetWindow(hwnd, GW_OWNER) != IntPtr.Zero) return false;
 
         long style = (long)GetWindowLongPtr(hwnd, GWL_STYLE);

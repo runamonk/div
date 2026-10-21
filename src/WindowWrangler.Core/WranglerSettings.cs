@@ -22,6 +22,12 @@ public sealed class WranglerSettings
     public bool SnapWithShift { get; set; } = true;
     // Put windows that open nowhere near a zone back where that app last was.
     public bool RestoreLastKnown { get; set; } = true;
+    // Dragging a window out of its zone puts it back to the size it was before it was snapped.
+    public bool RestoreSizeOnUnsnap { get; set; } = true;
+    // While dragging, this close (in pixels at 100% scaling) to the edge two zones share lights up both.
+    public int EdgeReach { get; set; } = 20;
+    // Win+arrow moves the active window between zones instead of Windows' own snapping.
+    public bool OverrideWinArrows { get; set; }
 
     public bool IsExcluded(string processName)
     {
@@ -43,9 +49,16 @@ public sealed class WranglerSettings
     // Null means the monitor has no layout, so its windows are left alone.
     public ZoneLayout? LayoutFor(string monitorId) => FindLayout(LayoutIdFor(monitorId));
 
+    public ZoneLayout? FindQuickKey(int key) => UserLayouts.FirstOrDefault(l => l.QuickKey == key);
+
     // Adds a user layout, or replaces the one with the same id.
     public void AddOrUpdate(ZoneLayout layout)
     {
+        // A quick key belongs to one layout at a time.
+        if (layout.QuickKey is { } key)
+            foreach (var other in UserLayouts)
+                if (other.Id != layout.Id && other.QuickKey == key) other.QuickKey = null;
+
         switch (layout)
         {
             case GridLayout grid: AddOrUpdate(CustomLayouts, grid); break;
@@ -100,6 +113,8 @@ public sealed class WranglerSettings
         var broken = new List<string>();
         DropInvalid(settings.CustomLayouts, broken);
         DropInvalid(settings.CanvasLayouts, broken);
+        foreach (var layout in settings.UserLayouts.Where(l => l.QuickKey is < 0 or > 9))
+            layout.QuickKey = null;
         if (broken.Count > 0) problem = $"Skipped invalid layouts: {string.Join("; ", broken)}";
 
         if (settings.DefaultLayoutId != LayoutTemplates.NoneId && settings.FindLayout(settings.DefaultLayoutId ?? "") is null)

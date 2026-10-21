@@ -118,6 +118,17 @@ public partial class LayoutsWindow : Window
         var header = new DockPanel { Height = 30 };
         DockPanel.SetDock(buttons, Dock.Right);
         header.Children.Add(buttons);
+        if (layout?.QuickKey is { } key)
+        {
+            var badge = new Border
+            {
+                Classes = { "badge" },
+                Child = new TextBlock { Text = key.ToString(), FontSize = 11, FontWeight = FontWeight.SemiBold },
+            };
+            ToolTip.SetTip(badge, $"Win+Ctrl+Alt+{key}");
+            DockPanel.SetDock(badge, Dock.Right);
+            header.Children.Add(badge);
+        }
         header.Children.Add(new TextBlock
         {
             Text = name,
@@ -127,13 +138,42 @@ public partial class LayoutsWindow : Window
             Classes = { "title" },
         });
 
+        var body = new Grid
+        {
+            Children =
+            {
+                new StackPanel
+                {
+                    Children = { header, new LayoutPreview { Layout = layout, Height = 108, Margin = new(0, 8, 4, 0) } },
+                },
+            },
+        };
+        bool isDefault = id == Settings.DefaultLayoutId;
+        if (isDefault)
+        {
+            // Folded corner, like a dog-eared page, marks the default.
+            var corner = new Avalonia.Controls.Shapes.Path
+            {
+                Data = Geometry.Parse("M 22,0 L 22,22 L 0,22 Z"),
+                Classes = { "default-corner" },
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                // Out over the padding to sit in the card's corner.
+                Margin = new(0, 0, -10, -14),
+            };
+            ToolTip.SetTip(corner, "Default layout for monitors you haven't picked one for");
+            body.Children.Add(corner);
+        }
+
+        var makeDefault = new MenuItem { Header = "Make default", IsEnabled = !isDefault };
+        makeDefault.Click += (_, _) => MakeDefault(id);
+
         var card = new Border
         {
             Classes = { "card" },
-            Child = new StackPanel
-            {
-                Children = { header, new LayoutPreview { Layout = layout, Height = 108, Margin = new(0, 8, 4, 0) } },
-            },
+            ClipToBounds = true,
+            Child = body,
+            ContextMenu = new ContextMenu { Items = { makeDefault } },
         };
         if (id == applied) card.Classes.Add("selected");
         card.PointerPressed += (_, e) =>
@@ -155,6 +195,14 @@ public partial class LayoutsWindow : Window
             ZoneOverlayWindow.Flash(monitor, layout.GetZones(monitor.WorkArea));
     }
 
+    // Monitors without a layout of their own (new ones included) use the default.
+    void MakeDefault(string layoutId)
+    {
+        Settings.DefaultLayoutId = layoutId;
+        _save();
+        BuildLayouts();
+    }
+
     void Customize(ZoneLayout template)
     {
         var copy = template.Clone();
@@ -168,6 +216,8 @@ public partial class LayoutsWindow : Window
         var copy = layout.Clone();
         copy.Id = Guid.NewGuid().ToString("N");
         copy.Name = NextName(layout.Name);
+        // Quick keys belong to one layout; the copy would steal it.
+        copy.QuickKey = null;
         Settings.AddOrUpdate(copy);
         _save();
         BuildLayouts();

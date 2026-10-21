@@ -30,6 +30,8 @@ public partial class LayoutEditorWindow : Window
         _layout = layout;
         _monitor = monitor;
         NameBox.Text = layout.Name;
+        QuickKeyBox.ItemsSource = new[] { "None" }.Concat(Enumerable.Range(0, 10).Select(k => k.ToString())).ToList();
+        QuickKeyBox.SelectedIndex = layout.QuickKey is { } key ? key + 1 : 0;
 
         var area = new PixelSize(monitor.WorkArea.Width, monitor.WorkArea.Height);
         bool isGrid = layout is GridLayout;
@@ -138,6 +140,7 @@ public partial class LayoutEditorWindow : Window
     {
         var name = NameBox.Text?.Trim();
         _layout.Name = string.IsNullOrEmpty(name) ? "Custom layout" : name;
+        _layout.QuickKey = QuickKeyBox.SelectedIndex > 0 ? QuickKeyBox.SelectedIndex - 1 : null;
         Saved?.Invoke(_layout);
         Close();
     }

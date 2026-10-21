@@ -29,6 +29,16 @@
                 <TextBlock Classes="section" Text="Snapping" />
                 <CheckBox x:Name="SnapWithShiftBox" Content="Hold Shift while dragging to show zones" />
                 <TextBlock Classes="note" Text="Turn off to show zones every time you drag a window." />
+                <CheckBox x:Name="RestoreSizeBox" Content="Restore a window's own size when dragged out of a zone" />
+
+                <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+                    <TextBlock Text="Light up both zones this close to their shared edge (pixels)" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <NumericUpDown Grid.Column="1" x:Name="EdgeReachBox" Minimum="0" Maximum="100" Increment="5" FormatString="0" Width="130" />
+                </Grid>
+                <TextBlock Classes="note" Margin="0,0,0,6" Text="0 turns it off; hold Ctrl while dragging to span zones instead." />
+
+                <CheckBox x:Name="WinArrowsBox" Content="Win+arrow keys move windows between zones" Margin="0,6,0,0" />
+                <TextBlock Classes="note" Text="Replaces Windows' own Win+arrow snapping. Where there's no zone that way, Windows still gets the key." />
 
                 <TextBlock Classes="section" Text="Placing new windows" />
                 <CheckBox x:Name="RestoreLastKnownBox" Content="Put windows back where the app last was" />

@@ -30,6 +30,9 @@
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Name" VerticalAlignment="Center" />
                     <TextBox x:Name="NameBox" Width="220" />
+                    <TextBlock Text="Quick key" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    <ComboBox x:Name="QuickKeyBox" Width="90" VerticalAlignment="Center"
+                              ToolTip.Tip="Win+Ctrl+Alt+number applies this layout to the active window's monitor" />
                     <StackPanel x:Name="SpacingPanel" Orientation="Horizontal" Spacing="10">
                         <TextBlock Text="Spacing" VerticalAlignment="Center" Margin="8,0,0,0" />
                         <NumericUpDown x:Name="SpacingBox" Minimum="0" Maximum="100" Increment="2" FormatString="0" Width="130" />

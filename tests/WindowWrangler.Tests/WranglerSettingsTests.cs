@@ -72,6 +72,42 @@ public sealed class WranglerSettingsTests : IDisposable
     }
 
     [Fact]
+    public void QuickKey_MovesToTheLayoutThatLastClaimedIt()
+    {
+        var settings = new WranglerSettings();
+        var first = GridLayout.CreateColumns(2);
+        first.QuickKey = 3;
+        settings.AddOrUpdate(first);
+        var second = new CanvasLayout { QuickKey = 3 };
+
+        settings.AddOrUpdate(second);
+
+        Assert.Null(first.QuickKey);
+        Assert.Same(second, settings.FindQuickKey(3));
+    }
+
+    [Fact]
+    public void QuickKey_SurvivesEditingACopy()
+    {
+        var layout = GridLayout.CreateColumns(2);
+        layout.QuickKey = 5;
+
+        Assert.Equal(5, layout.Clone().QuickKey);
+        Assert.Equal(5, new CanvasLayout { QuickKey = 5 }.Clone().QuickKey);
+    }
+
+    [Fact]
+    public void OutOfRangeQuickKey_IsDroppedOnLoad()
+    {
+        Directory.CreateDirectory(_folder);
+        File.WriteAllText(SettingsPath, """{ "customLayouts": [ { "id": "a", "name": "A", "quickKey": 42 } ] }""");
+
+        var settings = WranglerSettings.Load(SettingsPath, out _);
+
+        Assert.Null(settings.CustomLayouts[0].QuickKey);
+    }
+
+    [Fact]
     public void BrokenFile_UsesDefaultsAndKeepsTheFile()
     {
         Directory.CreateDirectory(_folder);

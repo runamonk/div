@@ -55,6 +55,7 @@ public sealed class GridLayout : ZoneLayout
     {
         Id = Id,
         Name = Name,
+        QuickKey = QuickKey,
         RowPercents = [.. RowPercents],
         ColumnPercents = [.. ColumnPercents],
         CellMap = CellMap.Select(r => r.ToArray()).ToArray(),
@@ -66,6 +67,7 @@ public sealed class GridLayout : ZoneLayout
     {
         Id = Id,
         Name = Name,
+        QuickKey = QuickKey,
         RowPercents = [.. ColumnPercents],
         ColumnPercents = [.. RowPercents],
         CellMap = Enumerable.Range(0, Columns).Select(c => Enumerable.Range(0, Rows).Select(r => CellMap[r][c]).ToArray()).ToArray(),

@@ -10,6 +10,8 @@ public abstract class ZoneLayout
 
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Custom layout";
+    // 0-9 for Win+Ctrl+Alt+number, or null for none.
+    public int? QuickKey { get; set; }
 
     // Zone rectangles for a monitor's work area, in zone-number order.
     public abstract IReadOnlyList<Rect> GetZones(Rect workArea);
