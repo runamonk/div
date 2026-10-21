@@ -96,7 +96,7 @@
 
     <TrayIcon.Icons>
         <TrayIcons>
-            <TrayIcon Icon="/Assets/WindowWrangler.png" ToolTipText="Window Wrangler" Clicked="Tray_Clicked">
+            <TrayIcon Icon="/Assets/WindowWrangler.ico" ToolTipText="Window Wrangler" Clicked="Tray_Clicked">
                 <TrayIcon.Menu>
                     <NativeMenu>
                         <NativeMenuItem Header="Edit layouts..." Click="EditLayouts_Click" />

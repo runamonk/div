@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/WindowWrangler.ico</ApplicationIcon>
     <AssemblyTitle>Window Wrangler</AssemblyTitle>
     <Product>Window Wrangler</Product>
     <Description>Puts windows back where they belong.</Description>
