@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="WindowWrangler.LayoutsWindow"
+        Title="Window Wrangler Layouts"
+        Icon="/Assets/WindowWrangler.png"
+        Width="1440" Height="760" MinWidth="640" MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+    <Grid RowDefinitions="Auto,*">
+        <Border Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppLineBrush}" BorderThickness="0,0,0,1"
+                Padding="16">
+            <StackPanel x:Name="MonitorPanel" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" />
+        </Border>
+
+        <Grid Grid.Row="1">
+            <ScrollViewer>
+                <StackPanel Margin="24,16,24,80">
+                    <TextBlock Classes="heading" Text="Templates" />
+                    <WrapPanel x:Name="TemplatePanel" />
+                    <TextBlock Classes="heading" Text="Custom" Margin="0,24,0,14" />
+                    <WrapPanel x:Name="CustomPanel" />
+                    <StackPanel x:Name="CustomEmpty" HorizontalAlignment="Center" Margin="0,24" Spacing="12">
+                        <TextBlock Text="&#xECA5;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="40"
+                                   HorizontalAlignment="Center" Classes="muted" />
+                        <TextBlock Text="Create or duplicate a layout to get started" Classes="muted" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Button Classes="primary action" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="24"
+                    AutomationProperties.Name="Create new layout">
+                <Button.Flyout>
+                    <MenuFlyout Placement="TopEdgeAlignedRight">
+                        <MenuItem Header="Grid" Click="CreateGrid_Click" />
+                        <MenuItem Header="Canvas (zones can overlap)" Click="CreateCanvas_Click" />
+                    </MenuFlyout>
+                </Button.Flyout>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" />
+                    <TextBlock Text="Create new layout" />
+                </StackPanel>
+            </Button>
+        </Grid>
+    </Grid>
+</Window>

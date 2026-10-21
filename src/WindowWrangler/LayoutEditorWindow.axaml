@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WindowWrangler"
+        x:Class="WindowWrangler.LayoutEditorWindow"
+        Title="Edit layout"
+        WindowDecorations="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        CanResize="False"
+        WindowStartupLocation="Manual"
+        TransparencyLevelHint="Transparent"
+        Background="#66000000">
+    <Grid>
+        <!-- Only one of these is shown, depending on the layout type. -->
+        <local:GridEditorCanvas x:Name="GridEditor" />
+        <local:CanvasEditor x:Name="CanvasEditor" />
+
+        <Canvas>
+            <Button x:Name="MergeButton" Classes="primary action" Content="Merge" IsVisible="False" Click="Merge_Click" />
+        </Canvas>
+
+        <!-- Drag it by the background if it's in the way. -->
+        <Border x:Name="Toolbar"
+                HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0"
+                Background="{DynamicResource AppCardBrush}"
+                BorderBrush="{DynamicResource AppLineBrush}" BorderThickness="1"
+                CornerRadius="8" Padding="16,12"
+                BoxShadow="0 4 18 0 #50000000">
+            <StackPanel Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Name" VerticalAlignment="Center" />
+                    <TextBox x:Name="NameBox" Width="220" />
+                    <StackPanel x:Name="SpacingPanel" Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Spacing" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        <NumericUpDown x:Name="SpacingBox" Minimum="0" Maximum="100" Increment="2" FormatString="0" Width="130" />
+                    </StackPanel>
+                    <StackPanel x:Name="CanvasTools" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+                        <Button Classes="action" Content="Add zone" Click="AddZone_Click" />
+                        <Button Classes="action" Content="Delete zone" Click="DeleteZone_Click" />
+                    </StackPanel>
+                    <Button Classes="primary action" Content="Save &amp; apply" Margin="8,0,0,0" Click="Save_Click" />
+                    <Button Classes="action" Content="Cancel" Click="Cancel_Click" />
+                </StackPanel>
+                <TextBlock x:Name="Hint" Classes="muted" FontSize="12" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

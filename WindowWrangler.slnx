@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WindowWrangler.Core/WindowWrangler.Core.csproj" />
+    <Project Path="src/WindowWrangler/WindowWrangler.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WindowWrangler.Tests/WindowWrangler.Tests.csproj" />
+  </Folder>
+</Solution>
