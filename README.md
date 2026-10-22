@@ -1,25 +1,25 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="branding/logo-dark.png">
-    <img src="branding/logo-light.png" alt="Window Wrangler" width="520">
+    <img src="branding/logo-light.png" alt="&lt;div&gt;" width="520">
   </picture>
 </p>
 
-<p align="center">Zones for your windows, and a lasso for the ones that wander off.</p>
+<p align="center">Lay out your screen like a page: divide it into zones, and windows stay in them.</p>
 
 ---
 
-Window Wrangler is a Windows tray app in the spirit of PowerToys FancyZones. You carve each
+`<div>` is a Windows tray app in the spirit of PowerToys FancyZones. You carve each
 monitor into zones, and it keeps windows in them:
 
 - **Snap by dragging.** Hold **Shift** while dragging a window to see the zones, then drop it into
   one. Near the edge two zones share, both light up; hold **Ctrl** to stretch across several.
   Without Shift, drags are left alone; turn drag-snapping off entirely in Settings.
 - **New windows land in place.** Most apps remember where they were and get it slightly wrong;
-  Window Wrangler nudges them the last few pixels into their zone. Apps that don't remember at all
+  `<div>` nudges them the last few pixels into their zone. Apps that don't remember at all
   are put back where they last sat, and each app remembers a few spots, so a second browser window
   goes to its own place instead of on top of the first. Windows that were already open when
-  Window Wrangler started (at sign-in, say) get the same last-few-pixels nudge.
+  `<div>` started (at sign-in, say) get the same last-few-pixels nudge.
 - **Maximize to zone.** Maximizing a window (button, title bar double-click, Win+Up) fills its zone
   instead, keeping its rounded corners, and maximizing again puts it back; hold Shift for the
   whole screen.
@@ -49,26 +49,26 @@ Start with Windows, Reload settings, Open settings folder.
 
 ## Files
 
-Everything lives in `%AppData%\WindowWrangler`:
+Everything lives in `%AppData%\Div`:
 
 | File | What |
 | --- | --- |
 | `settings.json` | Options and layouts. Safe to hand-edit; use *Reload settings* afterwards. |
 | `history.json` | Where each app's windows last sat. Delete it to forget. |
-| `wrangler.log` | Every move, and why: *nudged*, *restored*, *snapped* or *keyboard*. |
+| `div.log` | Every move, and why: *nudged*, *restored*, *snapped* or *keyboard*. |
 
 ## Building
 
 Needs the .NET 10 SDK. In VS Code press F5, or:
 
 ```
-dotnet run --project src/WindowWrangler
+dotnet run --project src/Div
 dotnet test
 ```
 
 `publish.cmd` makes a self-contained release build.
 
-Maximize-to-zone needs a small native helper, `native/WindowWranglerHook.c`, which Window Wrangler
+Maximize-to-zone needs a small native helper, `native/DivHook.c`, which `<div>`
 loads into the apps whose windows it manages (never into everything, and never into games). The
 built DLL is committed; after changing the C file, rebuild it with `pwsh native/build.ps1`, which
 fetches its compiler (zig) into `.tools/` on first run.
@@ -79,8 +79,14 @@ The icon and logos are drawn by `branding/make_branding.py` (needs Pillow):
 ## Known limits
 
 - Windows of apps running as administrator are left to Windows (normal maximize and snapping)
-  unless Window Wrangler runs as administrator too: tick *Run as administrator* in Settings. With
+  unless `<div>` runs as administrator too: tick *Run as administrator* in Settings. With
   *Start with Windows* on, that uses a scheduled task, so it starts at sign-in without a prompt.
 - Maximize-to-zone skips 32-bit apps, and apps that don't support display scaling on a scaled
   monitor; those maximize to the whole screen.
 - Don't run it alongside FancyZones; two window managers fighting over the same drag isn't pretty.
+
+## Formerly Window Wrangler
+
+It used to be called Window Wrangler. The first time `<div>` starts, it moves your settings,
+layouts and history over from `%AppData%\WindowWrangler`, closes the old app if it's still
+running, and swaps its start-with-Windows entry for its own.

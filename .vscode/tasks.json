@@ -5,7 +5,7 @@
       "label": "build",
       "type": "process",
       "command": "dotnet",
-      "args": ["build", "${workspaceFolder}/src/WindowWrangler/WindowWrangler.csproj"],
+      "args": ["build", "${workspaceFolder}/src/Div/Div.csproj"],
       "problemMatcher": "$msCompile",
       "group": { "kind": "build", "isDefault": true }
     },
@@ -13,7 +13,7 @@
       "label": "test",
       "type": "process",
       "command": "dotnet",
-      "args": ["test", "${workspaceFolder}/WindowWrangler.slnx"],
+      "args": ["test", "${workspaceFolder}/Div.slnx"],
       "problemMatcher": "$msCompile"
     }
   ]

@@ -2,11 +2,11 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Window Wrangler",
+      "name": "<div>",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/WindowWrangler/bin/Debug/net10.0/WindowWrangler.dll",
+      "program": "${workspaceFolder}/src/Div/bin/Debug/net10.0/Div.dll",
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
     }
