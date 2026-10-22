@@ -26,14 +26,14 @@ public sealed class WranglerSettingsTests : IDisposable
     public void SavedSettings_RoundTrip()
     {
         var custom = GridLayout.CreateColumns(2);
-        var saved = new WranglerSettings { MatchThreshold = 0.75, ExcludedApps = ["notepad"], CustomLayouts = [custom] };
+        var saved = new WranglerSettings { SnapDistance = 25, ExcludedApps = ["notepad"], CustomLayouts = [custom] };
         saved.MonitorLayouts[@"\\?\DISPLAY#GSM5B09#1"] = custom.Id;
         saved.Save(SettingsPath);
 
         var loaded = WranglerSettings.Load(SettingsPath, out var problem);
 
         Assert.Null(problem);
-        Assert.Equal(0.75, loaded.MatchThreshold);
+        Assert.Equal(25, loaded.SnapDistance);
         Assert.Equal(["notepad"], loaded.ExcludedApps);
         Assert.Equal(2, loaded.LayoutFor(@"\\?\DISPLAY#GSM5B09#1")?.GetZones(new Rect(0, 0, 100, 100)).Count);
     }

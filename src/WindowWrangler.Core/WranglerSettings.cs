@@ -13,9 +13,7 @@ public sealed class WranglerSettings
     public Dictionary<string, string> MonitorLayouts { get; set; } = [];
     public string DefaultLayoutId { get; set; } = LayoutTemplates.DefaultId;
     // How closely a window must overlap a zone (intersection over union, 0..1) before we snap it.
-    public double MatchThreshold { get; set; } = 0.6;
-    // Windows already within this many pixels of their zone are left alone.
-    public int Tolerance { get; set; } = 2;
+    public int SnapDistance { get; set; } = 10;
     // Process names we never touch, e.g. "notepad" or "notepad.exe".
     public List<string> ExcludedApps { get; set; } = [];
     // Holding Shift while dragging shows the zones and drops the window into one. Off: drag freely.

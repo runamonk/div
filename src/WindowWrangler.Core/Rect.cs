@@ -28,6 +28,11 @@ public readonly record struct Rect(int Left, int Top, int Right, int Bottom)
         return union == 0 ? 0 : (double)inter / union;
     }
 
+    // How far the furthest-off edge is from the matching edge of other.
+    public int EdgeDistance(Rect other) =>
+        Math.Max(Math.Max(Math.Abs(Left - other.Left), Math.Abs(Top - other.Top)),
+                 Math.Max(Math.Abs(Right - other.Right), Math.Abs(Bottom - other.Bottom)));
+
     public bool NearlyEquals(Rect other, int tolerance) =>
         Math.Abs(Left - other.Left) <= tolerance && Math.Abs(Top - other.Top) <= tolerance &&
         Math.Abs(Right - other.Right) <= tolerance && Math.Abs(Bottom - other.Bottom) <= tolerance;

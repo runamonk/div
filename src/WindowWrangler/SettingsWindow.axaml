@@ -50,16 +50,11 @@
                 <TextBlock Classes="note" Text="For apps that don't remember their own position. Apps that do are just nudged into the zone they open in." />
 
                 <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
-                    <TextBlock Text="How close a window must be to a zone to snap" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" x:Name="ThresholdText" VerticalAlignment="Center" />
+                    <TextBlock Text="Snap a new window into a zone when it's within (pixels)" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <NumericUpDown Grid.Column="1" x:Name="SnapDistanceBox" Minimum="0" Maximum="500" Increment="5" FormatString="0" Width="130" />
                 </Grid>
-                <Slider x:Name="ThresholdSlider" Minimum="30" Maximum="95" TickFrequency="5" IsSnapToTickEnabled="True" />
-                <TextBlock Classes="note" Margin="0,0,0,6" Text="Lower snaps more eagerly; higher leaves more windows floating." />
+                <TextBlock Classes="note" Margin="0,0,0,6" Text="Every edge has to be that close to the zone's. Higher catches apps that open further off; 0 turns it off." />
 
-                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
-                    <TextBlock Text="Leave windows alone if already within (pixels)" VerticalAlignment="Center" />
-                    <NumericUpDown Grid.Column="1" x:Name="ToleranceBox" Minimum="0" Maximum="50" Increment="1" FormatString="0" Width="130" />
-                </Grid>
 
                 <TextBlock Classes="section" Text="Excluded apps" />
                 <TextBlock Classes="note" Margin="0,0,0,8" Text="Never move these. One process name per line, e.g. notepad or notepad.exe." />

@@ -4,6 +4,10 @@ public enum Direction { Left, Up, Right, Down }
 
 public static class ZoneMatcher
 {
+    // A window this close (in pixels) to a zone counts as being in it: not worth moving, since apps
+    // round their own sizes by a pixel or two and we'd only fight them.
+    public const int Tolerance = 2;
+
     // Single zones plus pairs of neighbours, so a window deliberately spread over two zones
     // isn't squashed into one. A pair only counts if no third zone sits inside its bounding box.
     public static List<Rect> Candidates(IReadOnlyList<Rect> zones)
@@ -23,8 +27,27 @@ public static class ZoneMatcher
         return true;
     }
 
-    // The candidate the window overlaps best, or null if nothing reaches the threshold.
-    public static Rect? FindBest(Rect window, IReadOnlyList<Rect> zones, double threshold)
+    // The zone (or pair) whose edges are all within maxDistance pixels of the window's, closest first.
+    // Null if nothing is that close.
+    public static Rect? FindNear(Rect window, IReadOnlyList<Rect> zones, int maxDistance)
+    {
+        Rect? best = null;
+        int bestDistance = maxDistance;
+        foreach (var candidate in Candidates(zones))
+        {
+            int distance = window.EdgeDistance(candidate);
+            if (distance <= bestDistance)
+            {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    // The zone (or pair) the window overlaps most, if it overlaps at least that much (0..1). Looser
+    // than FindNear: for finding where a remembered spot went after the layout was edited.
+    public static Rect? BestOverlap(Rect window, IReadOnlyList<Rect> zones, double threshold)
     {
         Rect? best = null;
         double bestScore = threshold;
@@ -123,9 +146,9 @@ public static class ZoneMatcher
     }
 
     // Where the window should move to, or null if it's floating or already in place.
-    public static Rect? FindCorrection(Rect window, IReadOnlyList<Rect> zones, double threshold, int tolerance)
+    public static Rect? FindCorrection(Rect window, IReadOnlyList<Rect> zones, int maxDistance, int tolerance)
     {
-        var best = FindBest(window, zones, threshold);
+        var best = FindNear(window, zones, maxDistance);
         return best is { } target && !target.NearlyEquals(window, tolerance) ? target : null;
     }
 }

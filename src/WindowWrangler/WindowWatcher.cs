@@ -19,8 +19,14 @@ sealed class WindowWatcher : IDisposable
     // Apps like Edge show the window and then move it again; wait until it's been still this long.
     const int SettleTicks = 4;
     const int MaxWaitMs = 3000;
-    // After placing a new window, look once more in case the app moved it back.
+    // After moving a window, look once more in case the app moved it back.
     const int RecheckMs = 600;
+    // Apps like Edge keep shifting a new window for a while (restoring a session, loading tabs), so
+    // new windows get looked at again after these. Each look only nudges ones nearly in a zone.
+    static readonly int[] FollowUpMs = [1000, 3000, 8000];
+    // And windows already open when we start (at sign-in some apps beat us to it, and keep starting
+    // for a while after) get tidied at these.
+    static readonly int[] StartupTidySeconds = [3, 10, 30];
 
     sealed class Pending
     {
@@ -83,6 +89,16 @@ sealed class WindowWatcher : IDisposable
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
         RetagAll();
+
+        // Windows that were already open, say ones that beat us to it at sign-in: once they've had a
+        // moment, nudge any that are nearly in a zone. Only nudges; floating windows stay put.
+        foreach (int seconds in StartupTidySeconds)
+            DispatcherTimer.RunOnce(() =>
+            {
+                if (Paused) return;
+                int nudged = TidyAll();
+                if (nudged > 0) Log.Write($"Tidied {nudged} window(s) that were already open.");
+            }, TimeSpan.FromSeconds(seconds));
     }
 
     void OnWinEvent(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
@@ -144,9 +160,15 @@ sealed class WindowWatcher : IDisposable
 
             _pending.Remove(hwnd);
             _handled.Add(hwnd);
-            // Never yank a window the user is dragging.
-            if (settled && !Paused && Correct(hwnd, atLaunch: true))
-                DispatcherTimer.RunOnce(() => { if (IsWindow(hwnd)) Correct(hwnd); }, TimeSpan.FromMilliseconds(RecheckMs));
+            if (Paused) continue;
+            // Settled or still shifting after the wait, have a go; just never while the mouse is down,
+            // since that may be the user dragging it.
+            if (!mouseDown) Correct(hwnd, atLaunch: true);
+            foreach (int ms in FollowUpMs)
+                DispatcherTimer.RunOnce(() =>
+                {
+                    if (IsWindow(hwnd) && !Paused && !WindowOps.IsMouseDown()) Correct(hwnd);
+                }, TimeSpan.FromMilliseconds(ms));
         }
 
         if (_pending.Count == 0) _timer.Stop();
@@ -164,10 +186,10 @@ sealed class WindowWatcher : IDisposable
         if (frame == monitor.Bounds) return false; // Fullscreen.
 
         var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
-        if (ZoneMatcher.FindBest(frame, zones, settings.MatchThreshold) is { } zone)
+        if (ZoneMatcher.FindNear(frame, zones, settings.SnapDistance) is { } zone)
         {
             Remember(hwnd, monitor, zone);
-            if (zone.NearlyEquals(frame, settings.Tolerance)) return false;
+            if (zone.NearlyEquals(frame, ZoneMatcher.Tolerance)) return false;
             Move(hwnd, name, frame, zone, "nudged");
             return true;
         }
@@ -187,7 +209,7 @@ sealed class WindowWatcher : IDisposable
 
         // The layout may have changed since, so go to whichever zone fits the old spot best.
         var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
-        if (ZoneMatcher.FindBest(placement.Frame, zones, settings.MatchThreshold) is not { } zone) return false;
+        if (ZoneMatcher.BestOverlap(placement.Frame, zones, 0.6) is not { } zone) return false;
 
         Move(hwnd, name, frame, zone, "restored");
         Remember(hwnd, monitor, zone);
@@ -207,7 +229,7 @@ sealed class WindowWatcher : IDisposable
         _dragging = hwnd;
         _dragStart = WindowOps.GetVisibleFrame(hwnd);
         // Resized since we snapped it? Then the user has taken over its size.
-        _dragWasSnapped = _snapped.TryGetValue(hwnd, out var snapped) && snapped.Zone.NearlyEquals(_dragStart, _settings().Tolerance);
+        _dragWasSnapped = _snapped.TryGetValue(hwnd, out var snapped) && snapped.Zone.NearlyEquals(_dragStart, ZoneMatcher.Tolerance);
         if (!_dragWasSnapped) _snapped.Remove(hwnd);
         _snapper.Begin(hwnd);
     }
@@ -240,7 +262,7 @@ sealed class WindowWatcher : IDisposable
         var settings = _settings();
         var monitor = Monitors.FromPoint((frame.Left + frame.Right) / 2, (frame.Top + frame.Bottom) / 2);
         var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
-        if (ZoneMatcher.FindBest(frame, zones, settings.MatchThreshold) is { } near && near.NearlyEquals(frame, settings.Tolerance))
+        if (ZoneMatcher.FindNear(frame, zones, ZoneMatcher.Tolerance) is { } near)
         {
             Remember(hwnd, monitor, near);
             return true;
@@ -268,7 +290,7 @@ sealed class WindowWatcher : IDisposable
         var settings = _settings();
         var frame = WindowOps.GetVisibleFrame(hwnd);
         var zones = Monitors.All().SelectMany(m => settings.LayoutFor(m.Id)?.GetZones(m.WorkArea) ?? []).ToList();
-        if (ZoneMatcher.Neighbour(frame, zones, direction, settings.Tolerance) is not { } zone) return false;
+        if (ZoneMatcher.Neighbour(frame, zones, direction, ZoneMatcher.Tolerance) is not { } zone) return false;
 
         Move(hwnd, name, frame, zone, "keyboard");
         Remember(hwnd, Monitors.FromPoint((zone.Left + zone.Right) / 2, (zone.Top + zone.Bottom) / 2), zone);
@@ -304,7 +326,7 @@ sealed class WindowWatcher : IDisposable
         {
             var monitor = Monitors.FromWindow(hwnd);
             var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
-            zone = ZoneMatcher.MaximizeTarget(WindowOps.GetVisibleFrame(hwnd), zones, Math.Max(settings.Tolerance, 4));
+            zone = ZoneMatcher.MaximizeTarget(WindowOps.GetVisibleFrame(hwnd), zones, 4);
         }
         _maximizer.Tag(hwnd, zone, _snapped.TryGetValue(hwnd, out var own) ? (own.Width, own.Height) : null);
     }
@@ -321,7 +343,7 @@ sealed class WindowWatcher : IDisposable
     {
         var settings = _settings();
         var zones = Monitors.All().SelectMany(m => settings.LayoutFor(m.Id)?.GetZones(m.WorkArea) ?? []).ToList();
-        ZoneMatcher.Neighbour(new Rect(0, 0, 1, 1), zones, Direction.Left, settings.Tolerance);
+        ZoneMatcher.Neighbour(new Rect(0, 0, 1, 1), zones, Direction.Left, ZoneMatcher.Tolerance);
         IsManaged(GetForegroundWindow(), out _);
     }
 

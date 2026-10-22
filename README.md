@@ -18,7 +18,8 @@ monitor into zones, and it keeps windows in them:
 - **New windows land in place.** Most apps remember where they were and get it slightly wrong;
   Window Wrangler nudges them the last few pixels into their zone. Apps that don't remember at all
   are put back where they last sat, and each app remembers a few spots, so a second browser window
-  goes to its own place instead of on top of the first.
+  goes to its own place instead of on top of the first. Windows that were already open when
+  Window Wrangler started (at sign-in, say) get the same last-few-pixels nudge.
 - **Maximize to zone.** Maximizing a window (button, title bar double-click, Win+Up) fills its zone
   instead, keeping its rounded corners, and maximizing again puts it back; hold Shift for the
   whole screen.

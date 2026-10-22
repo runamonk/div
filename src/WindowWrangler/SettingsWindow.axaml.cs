@@ -29,10 +29,7 @@ public partial class SettingsWindow : Window
         WinArrowsBox.IsChecked = settings.OverrideWinArrows;
         MaximizeToZoneBox.IsChecked = settings.MaximizeToZone;
         RestoreLastKnownBox.IsChecked = settings.RestoreLastKnown;
-        ThresholdSlider.Value = Math.Round(settings.MatchThreshold * 100);
-        ThresholdText.Text = $"{ThresholdSlider.Value:0}%";
-        ThresholdSlider.ValueChanged += (_, e) => ThresholdText.Text = $"{e.NewValue:0}%";
-        ToleranceBox.Value = settings.Tolerance;
+        SnapDistanceBox.Value = settings.SnapDistance;
         ExcludedBox.Text = string.Join(Environment.NewLine, settings.ExcludedApps);
     }
 
@@ -46,8 +43,7 @@ public partial class SettingsWindow : Window
         _settings.OverrideWinArrows = WinArrowsBox.IsChecked == true;
         _settings.MaximizeToZone = MaximizeToZoneBox.IsChecked == true;
         _settings.RestoreLastKnown = RestoreLastKnownBox.IsChecked == true;
-        _settings.MatchThreshold = ThresholdSlider.Value / 100;
-        _settings.Tolerance = (int)(ToleranceBox.Value ?? 0);
+        _settings.SnapDistance = (int)(SnapDistanceBox.Value ?? 0);
         _settings.ExcludedApps = (ExcludedBox.Text ?? "")
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
