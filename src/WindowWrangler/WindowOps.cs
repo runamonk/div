@@ -71,6 +71,33 @@ static class WindowOps
         return $"{GetProcessName(hwnd)}|{className}";
     }
 
+    // Windows won't let a normal process move an admin app's windows, so don't try; leave them
+    // to Windows' own maximize and snapping. Running Window Wrangler as admin lifts this.
+    public static bool CanMove(IntPtr hwnd)
+    {
+        if (Environment.IsPrivilegedProcess) return true;
+        GetWindowThreadProcessId(hwnd, out uint pid);
+        var process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (process == IntPtr.Zero) return false;
+        try
+        {
+            // Not allowed to look at its token is as good as a yes.
+            if (!OpenProcessToken(process, TOKEN_QUERY, out var token)) return false;
+            try
+            {
+                return GetTokenInformation(token, TokenElevation, out int elevated, sizeof(int), out _) && elevated == 0;
+            }
+            finally
+            {
+                CloseHandle(token);
+            }
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
     public static bool IsMouseDown() => IsKeyDown(VK_LBUTTON);
 
     public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;

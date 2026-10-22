@@ -10,6 +10,8 @@ namespace WindowWrangler;
 //  - Dragged windows: snap to the zone picked on the overlay, or go back to their own size when
 //    dragged out of one.
 //  - Win+arrow: move the active window to the next zone that way.
+//  - Maximizing (any way: button, double-click, Win+Up): fills the window's zone instead of the
+//    whole screen. Each window is tagged with its zone and the app does it natively (ZoneMaximizer).
 //  - Either way, remember where each app's windows end up.
 sealed class WindowWatcher : IDisposable
 {
@@ -39,11 +41,24 @@ sealed class WindowWatcher : IDisposable
     readonly Dictionary<IntPtr, (string App, Placement Placement)> _owned = [];
     // Windows we've put in a zone, and the size they were before, for putting it back.
     readonly Dictionary<IntPtr, (Rect Zone, int Width, int Height)> _snapped = [];
-    IntPtr _showHook, _moveHook, _dragging;
+    readonly ZoneMaximizer _maximizer = new();
+    // Windows that moved since their maximize zone was last worked out.
+    readonly HashSet<IntPtr> _retag = [];
+    readonly DispatcherTimer _retagTimer;
+    IntPtr _showHook, _moveHook, _locationHook, _dragging;
     Rect _dragStart;
     bool _dragWasSnapped;
+    bool _paused;
 
-    public bool Paused { get; set; }
+    public bool Paused
+    {
+        get => _paused;
+        set
+        {
+            _paused = value;
+            RetagAll();
+        }
+    }
 
     public WindowWatcher(Func<WranglerSettings> settings)
     {
@@ -52,6 +67,9 @@ sealed class WindowWatcher : IDisposable
         _snapper = new DragSnapper(settings);
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(TickMs) };
         _timer.Tick += OnTick;
+        // A drag fires dozens of moves a second; work the zone out once it's had a moment.
+        _retagTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        _retagTimer.Tick += (_, _) => Retag();
     }
 
     // Out-of-context hooks call back on this thread's message loop, which is Avalonia's UI thread.
@@ -61,6 +79,10 @@ sealed class WindowWatcher : IDisposable
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
         _moveHook = SetWinEventHook(EVENT_SYSTEM_MOVESIZESTART, EVENT_SYSTEM_MOVESIZEEND, IntPtr.Zero, _onWinEvent, 0, 0,
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+        _locationHook = SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, IntPtr.Zero, _onWinEvent, 0, 0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+
+        RetagAll();
     }
 
     void OnWinEvent(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
@@ -74,6 +96,11 @@ sealed class WindowWatcher : IDisposable
                 _pending.Remove(hwnd);
                 _owned.Remove(hwnd); // The history spot stays; that's the point.
                 _snapped.Remove(hwnd);
+                _retag.Remove(hwnd);
+                _maximizer.Forget(hwnd);
+                return;
+            case EVENT_OBJECT_LOCATIONCHANGE:
+                LocationChanged(hwnd);
                 return;
             case EVENT_SYSTEM_MOVESIZESTART:
                 DragStarted(hwnd);
@@ -199,21 +226,27 @@ sealed class WindowWatcher : IDisposable
             return;
         }
 
-        // Placed by hand. If it's sitting in a zone remember that, otherwise it's floating now.
-        var settings = _settings();
+        // Placed by hand.
         var dropped = WindowOps.GetVisibleFrame(hwnd);
-        if (dropped == _dragStart) return;
-        var monitor = Monitors.FromWindow(hwnd);
+        if (dropped == _dragStart || RememberOrForget(hwnd, dropped)) return;
+        if (_dragWasSnapped && _settings().RestoreSizeOnUnsnap && _snapped.Remove(hwnd, out var before))
+            RestoreSize(hwnd, dropped, before.Width, before.Height);
+    }
+
+    // If the window is sitting in a zone, remember that spot and say so. Otherwise it's floating
+    // now, and whatever spot it had is forgotten.
+    bool RememberOrForget(IntPtr hwnd, Rect frame)
+    {
+        var settings = _settings();
+        var monitor = Monitors.FromPoint((frame.Left + frame.Right) / 2, (frame.Top + frame.Bottom) / 2);
         var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
-        if (ZoneMatcher.FindBest(dropped, zones, settings.MatchThreshold) is { } near && near.NearlyEquals(dropped, settings.Tolerance))
+        if (ZoneMatcher.FindBest(frame, zones, settings.MatchThreshold) is { } near && near.NearlyEquals(frame, settings.Tolerance))
         {
             Remember(hwnd, monitor, near);
-            return;
+            return true;
         }
-
         Forget(hwnd);
-        if (_dragWasSnapped && settings.RestoreSizeOnUnsnap && _snapped.Remove(hwnd, out var before))
-            RestoreSize(hwnd, dropped, before.Width, before.Height);
+        return false;
     }
 
     // Shrink (or grow) back to the old size around the cursor, so the bit you grabbed stays under it.
@@ -244,13 +277,66 @@ sealed class WindowWatcher : IDisposable
         return true;
     }
 
-    // Layouts were changed or switched; a drag in progress should show the new zones.
-    public void LayoutsChanged() => _snapper.Refresh();
+    // Any top-level window moved or resized, so its maximize zone may have changed.
+    void LocationChanged(IntPtr hwnd)
+    {
+        // While maximized or minimized it keeps its tag, so it comes back the same way.
+        if (GetAncestor(hwnd, GA_ROOT) != hwnd || IsIconic(hwnd) || IsZoomed(hwnd)) return;
+        _retag.Add(hwnd);
+        _retagTimer.Start();
+    }
+
+    void Retag()
+    {
+        _retagTimer.Stop();
+        foreach (var hwnd in _retag) Retag(hwnd);
+        _retag.Clear();
+    }
+
+    // Tells the window which zone maximizing should fill: the one it's over, or the one it's in.
+    // Not over a zone, excluded, paused or switched off: no tag, so it maximizes as usual.
+    void Retag(IntPtr hwnd)
+    {
+        if (!IsWindow(hwnd) || IsIconic(hwnd) || IsZoomed(hwnd)) return;
+        var settings = _settings();
+        Rect? zone = null;
+        if (!Paused && settings.MaximizeToZone && IsManaged(hwnd, out _))
+        {
+            var monitor = Monitors.FromWindow(hwnd);
+            var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
+            zone = ZoneMatcher.MaximizeTarget(WindowOps.GetVisibleFrame(hwnd), zones, Math.Max(settings.Tolerance, 4));
+        }
+        _maximizer.Tag(hwnd, zone, _snapped.TryGetValue(hwnd, out var own) ? (own.Width, own.Height) : null);
+    }
+
+    void RetagAll()
+    {
+        foreach (var hwnd in WindowOps.TopLevelWindows().Where(IsWindowVisible)) _retag.Add(hwnd);
+        _retagTimer.Start();
+    }
+
+    // The keyboard hook has to wait for MoveInDirection's answer, and the first call pays for .NET
+    // compiling it; slow enough and Windows gives up on the hook. So run the same code once up front.
+    public void WarmUp()
+    {
+        var settings = _settings();
+        var zones = Monitors.All().SelectMany(m => settings.LayoutFor(m.Id)?.GetZones(m.WorkArea) ?? []).ToList();
+        ZoneMatcher.Neighbour(new Rect(0, 0, 1, 1), zones, Direction.Left, settings.Tolerance);
+        IsManaged(GetForegroundWindow(), out _);
+    }
+
+    // Layouts or settings changed: a drag in progress should show the new zones, and every
+    // window's maximize zone may have moved.
+    public void LayoutsChanged()
+    {
+        _snapper.Refresh();
+        RetagAll();
+    }
 
     bool IsManaged(IntPtr hwnd, out string name, bool allowMaximized = false)
     {
         name = "";
-        if (!WindowOps.IsCandidate(hwnd, allowMaximized)) return false;
+        if (!WindowOps.IsCandidate(hwnd, allowMaximized) || !WindowOps.CanMove(hwnd)) return false;
         name = WindowOps.GetProcessName(hwnd);
         return !_settings().IsExcluded(name);
     }
@@ -302,9 +388,12 @@ sealed class WindowWatcher : IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        _retagTimer.Stop();
         _snapper.End();
+        _maximizer.Dispose();
         if (_showHook != IntPtr.Zero) UnhookWinEvent(_showHook);
         if (_moveHook != IntPtr.Zero) UnhookWinEvent(_moveHook);
-        _showHook = _moveHook = IntPtr.Zero;
+        if (_locationHook != IntPtr.Zero) UnhookWinEvent(_locationHook);
+        _showHook = _moveHook = _locationHook = IntPtr.Zero;
     }
 }

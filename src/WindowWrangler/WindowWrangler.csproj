@@ -10,10 +10,14 @@
     <Product>Window Wrangler</Product>
     <Description>Puts windows back where they belong.</Description>
     <Version>0.0.0-dev</Version>
+    <!-- Compile ahead of time when publishing: faster start, and the hooks never wait on the JIT. -->
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
   <ItemGroup>
     <AvaloniaResource Include="Assets/**" />
+    <!-- Built from native/WindowWranglerHook.c by native/build.ps1; committed so a plain build works. -->
+    <None Include="..\..\native\WindowWranglerHook.dll" Link="WindowWranglerHook.dll" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Avalonia" Version="12.1.3" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.3" />

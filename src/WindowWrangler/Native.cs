@@ -84,6 +84,80 @@ static class Native
         public InputUnion u;
     }
 
+    public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    public const uint TOKEN_QUERY = 0x0008;
+    public const int TokenElevation = 20;
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr OpenProcess(uint access, bool inherit, uint processId);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("advapi32.dll")]
+    public static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+    [DllImport("advapi32.dll")]
+    public static extern bool GetTokenInformation(IntPtr token, int infoClass, out int info, int length, out int returned);
+
+    public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
+
+    // For ZoneMaximizer: loading the native hook DLL into apps and tagging their windows.
+    public const int WH_CALLWNDPROCRET = 12;
+    public const uint WM_NULL = 0x0000;
+
+    [DllImport("user32.dll", EntryPoint = "SendNotifyMessageW")]
+    public static extern bool SendNotifyMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+    public const int DPI_AWARENESS_UNAWARE = 0;
+
+    [DllImport("kernel32.dll", EntryPoint = "LoadLibraryW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr LoadLibrary(string path);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
+    public static extern IntPtr GetProcAddress(IntPtr module, string name);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookEx(int idHook, IntPtr proc, IntPtr hMod, uint threadId);
+
+    [DllImport("user32.dll", EntryPoint = "SetPropW", CharSet = CharSet.Unicode)]
+    public static extern bool SetProp(IntPtr hwnd, string name, IntPtr value);
+
+    [DllImport("user32.dll", EntryPoint = "RemovePropW", CharSet = CharSet.Unicode)]
+    public static extern IntPtr RemoveProp(IntPtr hwnd, string name);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool IsWow64Process(IntPtr process, out bool wow64);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetWindowDpiAwarenessContext(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    public static extern int GetAwarenessFromDpiAwarenessContext(IntPtr context);
+
+    public const uint WM_QUIT = 0x0012;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam, lParam;
+        public uint time;
+        public POINT pt;
+    }
+
+    [DllImport("user32.dll", EntryPoint = "GetMessageW")]
+    public static extern int GetMessage(out MSG msg, IntPtr hwnd, uint filterMin, uint filterMax);
+
+    [DllImport("user32.dll", EntryPoint = "DispatchMessageW")]
+    public static extern IntPtr DispatchMessage(ref MSG msg);
+
+    [DllImport("user32.dll", EntryPoint = "PostThreadMessageW")]
+    public static extern bool PostThreadMessage(uint threadId, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+
     public delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW")]

@@ -57,6 +57,34 @@ public class ZoneNavigationTests
         Assert.Null(ZoneMatcher.TargetAt(1000, 500, zones, 0));
     }
 
+    [Fact]
+    public void Maximize_FillsTheZoneTheWindowIsIn()
+    {
+        var floating = new Rect(1200, 300, 1700, 700);
+
+        Assert.Equal(ThreeColumns[1], ZoneMatcher.MaximizeTarget(floating, ThreeColumns, 2));
+    }
+
+    [Fact]
+    public void Maximize_KeepsAWindowThatAlreadyFillsItsZoneThere()
+    {
+        // Only Shift+click goes full screen.
+        Assert.Equal(ThreeColumns[1], ZoneMatcher.MaximizeTarget(new Rect(1001, 0, 2000, 999), ThreeColumns, 2));
+        // Spread over two zones stays spread, rather than shrinking to one.
+        Assert.Equal(new Rect(0, 0, 2000, 1000), ZoneMatcher.MaximizeTarget(new Rect(0, 0, 2000, 1000), ThreeColumns, 2));
+    }
+
+    [Fact]
+    public void Maximize_GoesThroughWhenTheWindowIsntOverAZone()
+    {
+        var layout = GridLayout.CreateColumns(2);
+        layout.Spacing = 100;
+        var zones = layout.GetZones(new Rect(0, 0, 2000, 1000));
+
+        // Centred on the gap between the two zones.
+        Assert.Null(ZoneMatcher.MaximizeTarget(new Rect(800, 300, 1200, 700), zones, 2));
+    }
+
     [Theory]
     [InlineData(Direction.Right, 2)]
     [InlineData(Direction.Left, 0)]

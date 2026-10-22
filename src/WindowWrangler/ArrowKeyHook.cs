@@ -1,40 +1,56 @@
 using System.Runtime.InteropServices;
+using Avalonia.Threading;
 using WindowWrangler.Core;
 using static WindowWrangler.Native;
 
 namespace WindowWrangler;
 
 // Catches Win+arrow before Windows' own snapping does. RegisterHotKey can't take keys Windows
-// already owns, so this needs a low-level keyboard hook. The handler says whether it moved
-// something; if not, the key goes through and Windows does its usual thing.
+// already owns, so this needs a low-level keyboard hook. The handler (run on the UI thread) says
+// whether it moved something; if not, the key goes through and Windows does its usual thing.
 sealed class ArrowKeyHook : IDisposable
 {
+    // Windows drops a hook that's too slow even once, so if the app is busy, Windows gets the key.
+    static readonly TimeSpan AnswerWithin = TimeSpan.FromMilliseconds(150);
+
     readonly Func<Direction, bool> _handler;
     readonly LowLevelKeyboardProc _proc; // Held so the GC doesn't collect the callback.
-    IntPtr _hook;
+    readonly HookThread _thread;
 
     public ArrowKeyHook(Func<Direction, bool> handler)
     {
         _handler = handler;
         _proc = OnKey;
-        // Runs on this thread's message loop. Windows drops hooks that take too long, so keep it quick.
-        _hook = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(null), 0);
+        _thread = new HookThread("Win+arrow hook", () => SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(null), 0));
     }
 
-    public bool IsInstalled => _hook != IntPtr.Zero;
+    public bool IsInstalled => _thread.IsInstalled;
 
+    // Every key on the system passes through here, so anything that isn't Win+arrow leaves at once.
     IntPtr OnKey(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
         {
             var key = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-            if (ToDirection(key.vkCode) is { } direction && (key.flags & LLKHF_INJECTED) == 0 && OnlyWinHeld() && _handler(direction))
+            if (ToDirection(key.vkCode) is { } direction && (key.flags & LLKHF_INJECTED) == 0 && OnlyWinHeld() && Ask(direction))
             {
                 SwallowWin();
                 return 1;
             }
         }
-        return CallNextHookEx(_hook, nCode, wParam, lParam);
+        return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+    }
+
+    bool Ask(Direction direction)
+    {
+        try
+        {
+            return Dispatcher.UIThread.Invoke(() => _handler(direction), DispatcherPriority.Send, CancellationToken.None, AnswerWithin);
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
     }
 
     static Direction? ToDirection(uint vk) => (int)vk switch
@@ -62,9 +78,5 @@ sealed class ArrowKeyHook : IDisposable
         SendInput(2, inputs, Marshal.SizeOf<INPUT>());
     }
 
-    public void Dispose()
-    {
-        if (_hook != IntPtr.Zero) UnhookWindowsHookEx(_hook);
-        _hook = IntPtr.Zero;
-    }
+    public void Dispose() => _thread.Dispose();
 }

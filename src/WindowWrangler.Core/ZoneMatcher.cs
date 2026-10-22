@@ -113,6 +113,15 @@ public static class ZoneMatcher
         return best;
     }
 
+    // The zone the maximize button should fill: the one under the window's middle, or the zone
+    // (or pair) it already fills, which keeps it there. Null when it isn't over a zone at all,
+    // so the click goes through as a normal maximize.
+    public static Rect? MaximizeTarget(Rect window, IReadOnlyList<Rect> zones, int tolerance)
+    {
+        if (Candidates(zones).FirstOrDefault(c => c.NearlyEquals(window, tolerance)) is { Area: > 0 } filled) return filled;
+        return TargetAt((window.Left + window.Right) / 2, (window.Top + window.Bottom) / 2, zones, reach: 0);
+    }
+
     // Where the window should move to, or null if it's floating or already in place.
     public static Rect? FindCorrection(Rect window, IReadOnlyList<Rect> zones, double threshold, int tolerance)
     {

@@ -39,7 +39,11 @@ public partial class App : Application
             LoadSettings();
             _watcher = new WindowWatcher(() => _settings);
             _watcher.Start();
-            Log.Write("Started.");
+            Log.Write(Elevation.IsAdmin ? "Started (as admin)." : "Started.");
+            if (Elevation.IsAdmin && TrayIcon.GetIcons(this)?.FirstOrDefault() is { } tray) tray.ToolTipText = "Window Wrangler (admin)";
+
+            // Only an admin copy can set up (or take down) the admin kind of start-with-Windows.
+            if (Elevation.IsAdmin) TryStartup(() => Startup.Match(_settings.RunAsAdmin));
 
             // Win+Shift+` like FancyZones.
             _editorHotkey = new Hotkey(Native.MOD_WIN | Native.MOD_SHIFT, Native.VK_OEM_3, ShowLayouts);
@@ -79,6 +83,7 @@ public partial class App : Application
 
         if (_settings.OverrideWinArrows && _arrowKeys is null && _watcher is not null)
         {
+            _watcher.WarmUp();
             _arrowKeys = new ArrowKeyHook(_watcher.MoveInDirection);
             if (!_arrowKeys.IsInstalled) Log.Write("Couldn't hook Win+arrow keys.");
         }
@@ -132,7 +137,7 @@ public partial class App : Application
     {
         if (_settingsWindow is null)
         {
-            _settingsWindow = new SettingsWindow(_settings, SaveSettings);
+            _settingsWindow = new SettingsWindow(_settings, SaveSettings, RestartAsAdmin);
             _settingsWindow.Closed += (_, _) =>
             {
                 _settingsWindow = null;
@@ -182,15 +187,31 @@ public partial class App : Application
     void Startup_Click(object? sender, EventArgs e)
     {
         if (sender is not NativeMenuItem item) return;
+        TryStartup(() => Startup.Set(!Startup.IsEnabled, _settings.RunAsAdmin && Elevation.IsAdmin));
+        item.IsChecked = Startup.IsEnabled;
+    }
+
+    static void TryStartup(Action change)
+    {
         try
         {
-            Startup.IsEnabled = !Startup.IsEnabled;
+            change();
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException or InvalidOperationException)
         {
             Log.Write($"Couldn't change start with Windows: {ex.Message}");
         }
-        item.IsChecked = Startup.IsEnabled;
+    }
+
+    // Hand over to an admin copy (Windows asks first) and close this one. Stays put if the answer's no.
+    void RestartAsAdmin()
+    {
+        if (!Elevation.RelaunchAsAdmin())
+        {
+            Log.Write("Didn't get admin rights; carrying on without.");
+            return;
+        }
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown();
     }
 
     void Exit_Click(object? sender, EventArgs e)

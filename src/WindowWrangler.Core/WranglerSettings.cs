@@ -18,7 +18,7 @@ public sealed class WranglerSettings
     public int Tolerance { get; set; } = 2;
     // Process names we never touch, e.g. "notepad" or "notepad.exe".
     public List<string> ExcludedApps { get; set; } = [];
-    // Show zones while dragging only when Shift is held. Off means they always show.
+    // Holding Shift while dragging shows the zones and drops the window into one. Off: drag freely.
     public bool SnapWithShift { get; set; } = true;
     // Put windows that open nowhere near a zone back where that app last was.
     public bool RestoreLastKnown { get; set; } = true;
@@ -26,8 +26,12 @@ public sealed class WranglerSettings
     public bool RestoreSizeOnUnsnap { get; set; } = true;
     // While dragging, this close (in pixels at 100% scaling) to the edge two zones share lights up both.
     public int EdgeReach { get; set; } = 20;
+    // Run with admin rights, so apps running as admin can be managed too.
+    public bool RunAsAdmin { get; set; }
     // Win+arrow moves the active window between zones instead of Windows' own snapping.
     public bool OverrideWinArrows { get; set; }
+    // Maximizing a window fills its zone instead of the screen; with Shift held it's the whole screen.
+    public bool MaximizeToZone { get; set; } = true;
 
     public bool IsExcluded(string processName)
     {

@@ -4,9 +4,10 @@ using static WindowWrangler.Native;
 
 namespace WindowWrangler;
 
-// While a window is being dragged: show the zones (with Shift, by default), light up the one
+// While a window is being dragged with Shift held: show the zones, light up the one
 // under the cursor, and hand back where to drop it. Near the edge two zones share, both light up;
-// Ctrl stretches across zones from the first one. Resizing a window never snaps.
+// Ctrl stretches across zones from the first one. Resizing a window never snaps, and with
+// drag-snapping turned off in settings, drags are left alone entirely.
 sealed class DragSnapper
 {
     readonly Func<WranglerSettings> _settings;
@@ -59,7 +60,7 @@ sealed class DragSnapper
 
     void Track()
     {
-        bool showing = (!_settings().SnapWithShift || WindowOps.IsKeyDown(VK_SHIFT)) && !_resizing;
+        bool showing = _settings().SnapWithShift && WindowOps.IsKeyDown(VK_SHIFT) && !_resizing;
         if (!showing)
         {
             _overlay?.HideZones();

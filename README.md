@@ -14,10 +14,14 @@ monitor into zones, and it keeps windows in them:
 
 - **Snap by dragging.** Hold **Shift** while dragging a window to see the zones, then drop it into
   one. Near the edge two zones share, both light up; hold **Ctrl** to stretch across several.
+  Without Shift, drags are left alone; turn drag-snapping off entirely in Settings.
 - **New windows land in place.** Most apps remember where they were and get it slightly wrong;
   Window Wrangler nudges them the last few pixels into their zone. Apps that don't remember at all
   are put back where they last sat, and each app remembers a few spots, so a second browser window
   goes to its own place instead of on top of the first.
+- **Maximize to zone.** Maximizing a window (button, title bar double-click, Win+Up) fills its zone
+  instead, keeping its rounded corners, and maximizing again puts it back; hold Shift for the
+  whole screen.
 - **Win+arrow** (optional) moves the active window to the next zone that way, across monitors.
 - **Drag a window out of its zone** and it goes back to the size it was before it was snapped.
 
@@ -63,10 +67,19 @@ dotnet test
 
 `publish.cmd` makes a self-contained release build.
 
+Maximize-to-zone needs a small native helper, `native/WindowWranglerHook.c`, which Window Wrangler
+loads into the apps whose windows it manages (never into everything, and never into games). The
+built DLL is committed; after changing the C file, rebuild it with `pwsh native/build.ps1`, which
+fetches its compiler (zig) into `.tools/` on first run.
+
 The icon and logos are drawn by `branding/make_branding.py` (needs Pillow):
 `python branding/make_branding.py`.
 
 ## Known limits
 
-- Windows running as administrator can't be moved unless Window Wrangler runs as administrator too.
+- Windows of apps running as administrator are left to Windows (normal maximize and snapping)
+  unless Window Wrangler runs as administrator too: tick *Run as administrator* in Settings. With
+  *Start with Windows* on, that uses a scheduled task, so it starts at sign-in without a prompt.
+- Maximize-to-zone skips 32-bit apps, and apps that don't support display scaling on a scaled
+  monitor; those maximize to the whole screen.
 - Don't run it alongside FancyZones; two window managers fighting over the same drag isn't pretty.
