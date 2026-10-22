@@ -29,6 +29,9 @@ static class Native
     public const uint SWP_ASYNCWINDOWPOS = 0x4000;
     public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     public const int DWMWA_CLOAKED = 14;
+    public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    public const int DWMWCP_DEFAULT = 0;
+    public const int DWMWCP_DONOTROUND = 1;
     public const int VK_LBUTTON = 0x01;
     public const int VK_SHIFT = 0x10;
     public const int VK_CONTROL = 0x11;
@@ -330,4 +333,7 @@ static class Native
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 }

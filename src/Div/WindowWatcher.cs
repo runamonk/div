@@ -47,6 +47,8 @@ sealed class WindowWatcher : IDisposable
     readonly Dictionary<IntPtr, (string App, Placement Placement)> _owned = [];
     // Windows we've put in a zone, and the size they were before, for putting it back.
     readonly Dictionary<IntPtr, (Rect Zone, int Width, int Height)> _snapped = [];
+    // Windows we gave square corners, so we only ever round back our own.
+    readonly HashSet<IntPtr> _squared = [];
     readonly ZoneMaximizer _maximizer = new();
     // Windows that moved since their maximize zone was last worked out.
     readonly HashSet<IntPtr> _retag = [];
@@ -112,6 +114,7 @@ sealed class WindowWatcher : IDisposable
                 _pending.Remove(hwnd);
                 _owned.Remove(hwnd); // The history spot stays; that's the point.
                 _snapped.Remove(hwnd);
+                _squared.Remove(hwnd);
                 _retag.Remove(hwnd);
                 _maximizer.Forget(hwnd);
                 return;
@@ -322,13 +325,23 @@ sealed class WindowWatcher : IDisposable
         if (!IsWindow(hwnd) || IsIconic(hwnd) || IsZoomed(hwnd)) return;
         var settings = _settings();
         Rect? zone = null;
-        if (!Paused && settings.MaximizeToZone && IsManaged(hwnd, out _))
+        bool square = false;
+        if (!Paused && (settings.MaximizeToZone || settings.SquareCorners) && IsManaged(hwnd, out _))
         {
             var monitor = Monitors.FromWindow(hwnd);
             var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
-            zone = ZoneMatcher.MaximizeTarget(WindowOps.GetVisibleFrame(hwnd), zones, 4);
+            var frame = WindowOps.GetVisibleFrame(hwnd);
+            if (settings.MaximizeToZone) zone = ZoneMatcher.MaximizeTarget(frame, zones, 4);
+            square = settings.SquareCorners && ZoneMatcher.FindNear(frame, zones, ZoneMatcher.Tolerance) is not null;
         }
         _maximizer.Tag(hwnd, zone, _snapped.TryGetValue(hwnd, out var own) ? (own.Width, own.Height) : null);
+        SetCorners(hwnd, square);
+    }
+
+    // Square in a zone, rounded again once it leaves, or when the setting goes off.
+    void SetCorners(IntPtr hwnd, bool square)
+    {
+        if (square ? _squared.Add(hwnd) : _squared.Remove(hwnd)) WindowOps.SetSquareCorners(hwnd, square);
     }
 
     void RetagAll()
@@ -352,6 +365,9 @@ sealed class WindowWatcher : IDisposable
     public void LayoutsChanged()
     {
         _snapper.Refresh();
+        // Retag skips minimized and maximized windows, so round those back here.
+        if (!_settings().SquareCorners)
+            foreach (var hwnd in _squared.ToList()) SetCorners(hwnd, false);
         RetagAll();
     }
 
@@ -371,6 +387,8 @@ sealed class WindowWatcher : IDisposable
         _snapped[hwnd] = (to, width, height);
 
         WindowOps.MoveVisibleFrameTo(hwnd, to);
+        // Retag would get there too, but this way it doesn't land rounded and then flick square.
+        if (_settings().SquareCorners) SetCorners(hwnd, true);
         Log.Write($"{name}: {why} {from} -> {to}");
     }
 

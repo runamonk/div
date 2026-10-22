@@ -32,6 +32,8 @@
                 <CheckBox x:Name="SnapWithShiftBox" Content="Snap windows to zones while dragging (hold Shift)" />
                 <TextBlock Classes="note" Text="Hold Shift while dragging to show the zones and drop a window into one. Turn off to drag windows freely." />
                 <CheckBox x:Name="RestoreSizeBox" Content="Restore a window's own size when dragged out of a zone" />
+                <CheckBox x:Name="SquareCornersBox" Content="Square corners on windows in a zone" Margin="0,6,0,0" />
+                <TextBlock Classes="note" Text="Windows 11 only. Stops the rounded corners leaving gaps between zoned windows." />
 
                 <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
                     <TextBlock Text="Light up both zones this close to their shared edge (pixels)" VerticalAlignment="Center" TextWrapping="Wrap" />

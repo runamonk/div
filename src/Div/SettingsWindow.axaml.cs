@@ -25,6 +25,7 @@ public partial class SettingsWindow : Window
         RunAsAdminBox.IsChecked = settings.RunAsAdmin;
         SnapWithShiftBox.IsChecked = settings.SnapWithShift;
         RestoreSizeBox.IsChecked = settings.RestoreSizeOnUnsnap;
+        SquareCornersBox.IsChecked = settings.SquareCorners;
         EdgeReachBox.Value = settings.EdgeReach;
         WinArrowsBox.IsChecked = settings.OverrideWinArrows;
         MaximizeToZoneBox.IsChecked = settings.MaximizeToZone;
@@ -39,6 +40,7 @@ public partial class SettingsWindow : Window
         _settings.RunAsAdmin = RunAsAdminBox.IsChecked == true;
         _settings.SnapWithShift = SnapWithShiftBox.IsChecked == true;
         _settings.RestoreSizeOnUnsnap = RestoreSizeBox.IsChecked == true;
+        _settings.SquareCorners = SquareCornersBox.IsChecked == true;
         _settings.EdgeReach = (int)(EdgeReachBox.Value ?? 0);
         _settings.OverrideWinArrows = WinArrowsBox.IsChecked == true;
         _settings.MaximizeToZone = MaximizeToZoneBox.IsChecked == true;

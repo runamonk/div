@@ -48,6 +48,14 @@ static class WindowOps
             SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
     }
 
+    // Windows 11 rounds window corners, which leaves little gaps between zoned windows.
+    // Does nothing on Windows 10.
+    public static void SetSquareCorners(IntPtr hwnd, bool square)
+    {
+        int preference = square ? DWMWCP_DONOTROUND : DWMWCP_DEFAULT;
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+    }
+
     public static string GetProcessName(IntPtr hwnd)
     {
         GetWindowThreadProcessId(hwnd, out uint pid);
