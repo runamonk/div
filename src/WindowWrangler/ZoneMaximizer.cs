@@ -47,12 +47,30 @@ sealed class ZoneMaximizer : IDisposable
                 File.WriteAllBytes(copy, bytes);
             }
             AllowStoreApps(copy);
+            RemoveOldCopies(copy);
             return copy;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write($"Couldn't prepare {DllName}: {ex.Message}");
             return null;
+        }
+    }
+
+    // Each new version of the helper leaves its copy behind. Ones still pinned inside a running app
+    // can't be deleted until that app closes; they're skipped and go next time.
+    static void RemoveOldCopies(string current)
+    {
+        foreach (var old in Directory.GetFiles(AppPaths.LocalFolder, "WindowWranglerHook-*.dll"))
+        {
+            if (string.Equals(old, current, StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                File.Delete(old);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
         }
     }
 

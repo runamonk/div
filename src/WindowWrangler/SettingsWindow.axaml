@@ -55,7 +55,6 @@
                 </Grid>
                 <TextBlock Classes="note" Margin="0,0,0,6" Text="Every edge has to be that close to the zone's. Higher catches apps that open further off; 0 turns it off." />
 
-
                 <TextBlock Classes="section" Text="Excluded apps" />
                 <TextBlock Classes="note" Margin="0,0,0,8" Text="Never move these. One process name per line, e.g. notepad or notepad.exe." />
                 <TextBox x:Name="ExcludedBox" AcceptsReturn="True" TextWrapping="NoWrap" Height="120" />
