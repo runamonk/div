@@ -94,4 +94,29 @@ public class ZoneMatcherTests
         // 4 singles + 2 horizontal pairs + 2 vertical pairs.
         Assert.Equal(8, ZoneMatcher.Candidates(grid).Count);
     }
+
+    [Fact]
+    public void EditedLayout_WindowFollowsItsZone()
+    {
+        IReadOnlyList<Rect> after = [new(0, 0, 1500, 1000), new(1500, 0, 2200, 1000), new(2200, 0, 3000, 1000)];
+
+        Assert.Equal(after[1], ZoneMatcher.Follow(ThreeColumns[1], ThreeColumns, after, 2));
+    }
+
+    [Fact]
+    public void DifferentLayout_WindowGoesWhereItOverlapsMost()
+    {
+        var twoColumns = GridLayout.CreateColumns(2).GetZones(new Rect(0, 0, 3000, 1000));
+
+        Assert.Equal(twoColumns[0], ZoneMatcher.Follow(ThreeColumns[0], ThreeColumns, twoColumns, 2));
+        Assert.Equal(twoColumns[1], ZoneMatcher.Follow(ThreeColumns[2], ThreeColumns, twoColumns, 2));
+    }
+
+    [Fact]
+    public void FloatingWindow_DoesNotFollowLayout()
+    {
+        var twoColumns = GridLayout.CreateColumns(2).GetZones(new Rect(0, 0, 3000, 1000));
+
+        Assert.Null(ZoneMatcher.Follow(new Rect(1100, 300, 1900, 700), ThreeColumns, twoColumns, 2));
+    }
 }

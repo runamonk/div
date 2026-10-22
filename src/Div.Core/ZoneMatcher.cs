@@ -145,6 +145,17 @@ public static class ZoneMatcher
         return TargetAt((window.Left + window.Right) / 2, (window.Top + window.Bottom) / 2, zones, reach: 0);
     }
 
+    // Where a window sitting in one of the old zones goes when the layout changes. Same number of
+    // zones: the same zone, so editing a layout carries its windows along. Otherwise whichever zone
+    // overlaps its old one most. Null if it wasn't in a zone or is already in place.
+    public static Rect? Follow(Rect window, IReadOnlyList<Rect> before, IReadOnlyList<Rect> after, int tolerance)
+    {
+        if (FindNear(window, before, tolerance) is not { } was) return null;
+        int index = before.Count == after.Count ? before.ToList().IndexOf(was) : -1;
+        var target = index >= 0 ? after[index] : BestOverlap(was, after, 0.01);
+        return target is { } zone && !zone.NearlyEquals(window, tolerance) ? zone : null;
+    }
+
     // Where the window should move to, or null if it's floating or already in place.
     public static Rect? FindCorrection(Rect window, IReadOnlyList<Rect> zones, int maxDistance, int tolerance)
     {

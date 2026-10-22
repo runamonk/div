@@ -49,6 +49,8 @@ sealed class WindowWatcher : IDisposable
     readonly Dictionary<IntPtr, (Rect Zone, int Width, int Height)> _snapped = [];
     // Windows we gave square corners, so we only ever round back our own.
     readonly HashSet<IntPtr> _squared = [];
+    // Each monitor's zones as of the last settings change, so a layout edit can take its windows along.
+    readonly Dictionary<string, IReadOnlyList<Rect>> _lastZones = [];
     readonly ZoneMaximizer _maximizer = new();
     // Windows that moved since their maximize zone was last worked out.
     readonly HashSet<IntPtr> _retag = [];
@@ -365,10 +367,33 @@ sealed class WindowWatcher : IDisposable
     public void LayoutsChanged()
     {
         _snapper.Refresh();
+        FollowLayouts();
         // Retag skips minimized and maximized windows, so round those back here.
         if (!_settings().SquareCorners)
             foreach (var hwnd in _squared.ToList()) SetCorners(hwnd, false);
         RetagAll();
+    }
+
+    // Windows sitting in a zone move to the matching zone of the new layout; floating ones stay put.
+    void FollowLayouts()
+    {
+        var settings = _settings();
+        var before = new Dictionary<string, IReadOnlyList<Rect>>(_lastZones);
+        _lastZones.Clear();
+        foreach (var monitor in Monitors.All())
+            _lastZones[monitor.Id] = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
+        if (Paused) return;
+
+        foreach (var hwnd in WindowOps.TopLevelWindows())
+        {
+            if (!IsManaged(hwnd, out var name)) continue;
+            var monitor = Monitors.FromWindow(hwnd);
+            if (!before.TryGetValue(monitor.Id, out var old) || !_lastZones.TryGetValue(monitor.Id, out var zones)) continue;
+            var frame = WindowOps.GetVisibleFrame(hwnd);
+            if (ZoneMatcher.Follow(frame, old, zones, ZoneMatcher.Tolerance) is not { } zone) continue;
+            Move(hwnd, name, frame, zone, "layout changed");
+            Remember(hwnd, monitor, zone);
+        }
     }
 
     bool IsManaged(IntPtr hwnd, out string name, bool allowMaximized = false)
