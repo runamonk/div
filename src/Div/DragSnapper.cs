@@ -19,6 +19,9 @@ sealed class DragSnapper
     Rect? _target;
     bool _resizing;
 
+    // The current (or last) drag was the user pulling an edge, not moving the window.
+    public bool Resizing => _resizing;
+
     public DragSnapper(Func<DivSettings> settings)
     {
         _settings = settings;

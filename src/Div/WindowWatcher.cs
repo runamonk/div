@@ -256,6 +256,12 @@ sealed class WindowWatcher : IDisposable
         // Placed by hand.
         var dropped = WindowOps.GetVisibleFrame(hwnd);
         if (dropped == _dragStart || RememberOrForget(hwnd, dropped)) return;
+        // Resized by hand: that's the size they want now, so don't put the old one back.
+        if (_snapper.Resizing)
+        {
+            _snapped.Remove(hwnd);
+            return;
+        }
         if (_dragWasSnapped && _settings().RestoreSizeOnUnsnap && _snapped.Remove(hwnd, out var before))
             RestoreSize(hwnd, dropped, before.Width, before.Height);
     }
