@@ -334,6 +334,13 @@ sealed class WindowWatcher : IDisposable
     void Retag(IntPtr hwnd)
     {
         if (!IsWindow(hwnd) || IsIconic(hwnd) || IsZoomed(hwnd)) return;
+        // Left its remembered spot some way other than a drag (maximize toggled back, the app moved
+        // itself): remember where it is now if that's a zone, otherwise forget it. A drag sorts this
+        // out itself when it ends.
+        if (!Paused && hwnd != _dragging && _owned.TryGetValue(hwnd, out var owned) &&
+            !owned.Placement.Frame.NearlyEquals(WindowOps.GetVisibleFrame(hwnd), ZoneMatcher.Tolerance))
+            RememberOrForget(hwnd, WindowOps.GetVisibleFrame(hwnd));
+
         var settings = _settings();
         Rect? zone = null;
         bool square = false;
