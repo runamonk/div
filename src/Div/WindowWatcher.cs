@@ -165,6 +165,9 @@ sealed class WindowWatcher : IDisposable
 
             _pending.Remove(hwnd);
             _handled.Add(hwnd);
+            // One that opened right in its zone never moves after showing, so it'd miss its tag.
+            _retag.Add(hwnd);
+            _retagTimer.Start();
             if (Paused) continue;
             // Settled or still shifting after the wait, have a go; just never while the mouse is down,
             // since that may be the user dragging it.
