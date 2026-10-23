@@ -11,6 +11,10 @@
 //     zone, and since some apps (anything on Chromium) ignore that answer, we also put the zone
 //     in place at the last moment the window is placed (WM_WINDOWPOSCHANGING).
 //
+//   - Apps that maximize themselves directly (custom title bars, like eM Client's) skip the maximize
+//     command. Windows asks a second hook before any maximize happens, and there we can cancel it
+//     and do the maximize command's move instead.
+//
 // With Shift held we stay out of it, and the window maximizes to the whole screen.
 //
 // The zone tag is a window property Div sets from outside: four 16-bit screen
@@ -328,6 +332,20 @@ __declspec(dllexport) LRESULT CALLBACK DivCallWndRetProc(int code, WPARAM wParam
     {
         const CWPRETSTRUCT *message = (const CWPRETSTRUCT *)lParam;
         if (GetPropW(message->hwnd, ZONE_PROPERTY)) subclass(message->hwnd);
+    }
+    return CallNextHookEx(NULL, code, wParam, lParam);
+}
+
+// The second way in: Windows calls this before a window is minimized or maximized, however the app
+// asked for it, and a nonzero answer cancels it. A maximize of a visible tagged window becomes the
+// maximize command's move into the zone. (Not a hidden one: cancelling "show maximized" would leave
+// it hidden.)
+__declspec(dllexport) LRESULT CALLBACK DivCbtProc(int code, WPARAM wParam, LPARAM lParam)
+{
+    if (code == HCBT_MINMAX && LOWORD(lParam) == SW_MAXIMIZE)
+    {
+        HWND hwnd = (HWND)wParam;
+        if (IsWindowVisible(hwnd) && GetPropW(hwnd, ZONE_PROPERTY) && maximize_command(hwnd)) return 1;
     }
     return CallNextHookEx(NULL, code, wParam, lParam);
 }

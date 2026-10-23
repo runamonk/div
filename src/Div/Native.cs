@@ -107,6 +107,7 @@ static class Native
 
     // For ZoneMaximizer: loading the native hook DLL into apps and tagging their windows.
     public const int WH_CALLWNDPROCRET = 12;
+    public const int WH_CBT = 5;
     public const uint WM_NULL = 0x0000;
 
     [DllImport("user32.dll", EntryPoint = "SendNotifyMessageW")]

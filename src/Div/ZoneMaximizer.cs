@@ -17,16 +17,17 @@ sealed class ZoneMaximizer : IDisposable
     const string OwnSizeProperty = "Div.OwnSize";
     const string DllName = "DivHook.dll";
 
-    readonly IntPtr _dll, _proc;
+    readonly IntPtr _dll, _proc, _cbtProc;
     // One hook per app thread with windows we've tagged, and the process it belonged to, so a
     // reused thread id isn't mistaken for one we've already hooked.
-    readonly Dictionary<uint, (uint Process, IntPtr Hook)> _hooks = [];
+    readonly Dictionary<uint, (uint Process, IntPtr Hook, IntPtr Cbt)> _hooks = [];
     readonly HashSet<IntPtr> _tagged = [];
 
     public ZoneMaximizer()
     {
         if (LoadableCopy() is { } path) _dll = LoadLibrary(path);
         if (_dll != IntPtr.Zero) _proc = GetProcAddress(_dll, "DivCallWndRetProc");
+        if (_dll != IntPtr.Zero) _cbtProc = GetProcAddress(_dll, "DivCbtProc");
         if (_proc == IntPtr.Zero) Log.Write($"Couldn't load {DllName}; maximizing will use the whole screen.");
     }
 
@@ -149,7 +150,10 @@ sealed class ZoneMaximizer : IDisposable
             Log.Write($"Couldn't load the maximize helper into {WindowOps.GetProcessName(hwnd)} (error {Marshal.GetLastWin32Error()}).");
             return false;
         }
-        _hooks[thread] = (pid, hook);
+        // Catches apps that maximize themselves instead of sending the maximize command. Without it
+        // they still maximize into the zone, just as a real maximize.
+        var cbt = _cbtProc != IntPtr.Zero ? SetWindowsHookEx(WH_CBT, _cbtProc, _dll, thread) : IntPtr.Zero;
+        _hooks[thread] = (pid, hook, cbt);
         Log.Write($"Loaded the maximize helper into {WindowOps.GetProcessName(hwnd)}.");
         return true;
     }
@@ -163,7 +167,11 @@ sealed class ZoneMaximizer : IDisposable
         }
         _tagged.Clear();
         // The DLL stays in each app until its next message, then Windows unloads it.
-        foreach (var (_, hook) in _hooks.Values) UnhookWindowsHookEx(hook);
+        foreach (var (_, hook, cbt) in _hooks.Values)
+        {
+            UnhookWindowsHookEx(hook);
+            if (cbt != IntPtr.Zero) UnhookWindowsHookEx(cbt);
+        }
         _hooks.Clear();
     }
 }
