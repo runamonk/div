@@ -37,12 +37,15 @@
 // Versioned: windows subclassed by an older copy keep it until their app restarts, and a newer
 // copy has to be able to go in front of it (and so get the last word) rather than think it's done.
 // Bump this whenever answer_with_zone changes.
-#define OLD_PROC_PROPERTY L"Div.OldWndProc.1"
+#define OLD_PROC_PROPERTY L"Div.OldWndProc.2"
 // Set on windows that use the older ANSI text mode, so we pass their messages on the same way.
-#define ANSI_PROPERTY L"Div.Ansi.1"
+#define ANSI_PROPERTY L"Div.Ansi.2"
 // Set while a window is maximized to the whole screen on purpose (Shift was held), so later
 // placements while it stays maximized are left alone too.
 #define FULL_SCREEN_PROPERTY L"Div.FullScreen"
+// The clip we put on a window maximized into its zone (window coordinates), so we only ever
+// take off our own.
+#define CLIP_PROPERTY L"Div.Clip"
 
 static int unpack(ULONG_PTR packed, int shift)
 {
@@ -197,6 +200,48 @@ static void place_in_zone(HWND hwnd, WINDOWPOS *pos)
     pos->flags &= ~SWP_NOMOVE;
 }
 
+// A real maximize hangs the window's frame past its zone. At the screen edges that's out of sight,
+// but next to another zone it shows as a strip over that zone's window. So while it's maximized
+// in its zone, clip it to the zone. Apps that shape their own window are left alone.
+static void clip_to_zone(HWND hwnd)
+{
+    ULONG_PTR ours = (ULONG_PTR)GetPropW(hwnd, CLIP_PROPERTY);
+    RECT window, maximized, zone, work;
+    BOOL in_zone = IsZoomed(hwnd) && !GetPropW(hwnd, FULL_SCREEN_PROPERTY) && GetWindowRect(hwnd, &window) &&
+                   maximized_rect(hwnd, &maximized, &work) && close_to(window, maximized) &&
+                   window_zone(hwnd, &zone, &work);
+    if (!in_zone)
+    {
+        // Property first: taking the clip off places the window again, which comes back here.
+        if (ours)
+        {
+            RemovePropW(hwnd, CLIP_PROPERTY);
+            SetWindowRgn(hwnd, NULL, TRUE);
+        }
+        return;
+    }
+
+    RECT clip = { zone.left - window.left, zone.top - window.top, zone.right - window.left, zone.bottom - window.top };
+    if (ours == pack(clip)) return;
+    if (!ours)
+    {
+        HRGN existing = CreateRectRgn(0, 0, 0, 0);
+        int shaped = existing ? GetWindowRgn(hwnd, existing) : ERROR;
+        if (existing) DeleteObject(existing);
+        if (shaped != ERROR) return;
+    }
+
+    HRGN region = CreateRectRgnIndirect(&clip);
+    if (!region) return;
+    SetPropW(hwnd, CLIP_PROPERTY, (HANDLE)pack(clip));
+    // On success Windows owns the region; on failure it's still ours to free.
+    if (!SetWindowRgn(hwnd, region, TRUE))
+    {
+        DeleteObject(region);
+        RemovePropW(hwnd, CLIP_PROPERTY);
+    }
+}
+
 // Our window procedure, in front of the app's. Everything goes to the app as normal; we only
 // touch the answer to "how big is maximized?" on the way back.
 static LRESULT CALLBACK zone_window_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -214,6 +259,7 @@ static LRESULT CALLBACK zone_window_proc(HWND hwnd, UINT message, WPARAM wParam,
         RemovePropW(hwnd, OWN_SIZE_PROPERTY);
         RemovePropW(hwnd, BEFORE_PROPERTY);
         RemovePropW(hwnd, FULL_SCREEN_PROPERTY);
+        RemovePropW(hwnd, CLIP_PROPERTY);
         return ansi ? CallWindowProcA(app, hwnd, message, wParam, lParam) : CallWindowProcW(app, hwnd, message, wParam, lParam);
     }
 
@@ -227,7 +273,11 @@ static LRESULT CALLBACK zone_window_proc(HWND hwnd, UINT message, WPARAM wParam,
     LRESULT result = ansi ? CallWindowProcA(app, hwnd, message, wParam, lParam) : CallWindowProcW(app, hwnd, message, wParam, lParam);
     if (message == WM_GETMINMAXINFO) answer_size_question(hwnd, (MINMAXINFO *)lParam);
     else if (message == WM_WINDOWPOSCHANGING) place_in_zone(hwnd, (WINDOWPOS *)lParam);
-    else if (message == WM_WINDOWPOSCHANGED && !IsZoomed(hwnd)) RemovePropW(hwnd, FULL_SCREEN_PROPERTY);
+    else if (message == WM_WINDOWPOSCHANGED)
+    {
+        if (!IsZoomed(hwnd)) RemovePropW(hwnd, FULL_SCREEN_PROPERTY);
+        clip_to_zone(hwnd);
+    }
     return result;
 }
 

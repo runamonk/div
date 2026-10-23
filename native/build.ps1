@@ -26,7 +26,7 @@ if (-not (Test-Path $zig)) {
 
 # 64-bit only: Div is 64-bit, and a hook DLL can only go into apps of its own bitness.
 & $zig cc -shared -O2 -target x86_64-windows-gnu -Wall -Werror `
-    -o (Join-Path $PSScriptRoot "DivHook.dll") (Join-Path $PSScriptRoot "DivHook.c") -luser32 -ldwmapi
+    -o (Join-Path $PSScriptRoot "DivHook.dll") (Join-Path $PSScriptRoot "DivHook.c") -luser32 -lgdi32 -ldwmapi
 if ($LASTEXITCODE -ne 0) { throw "Build failed." }
 # zig leaves an import library and debug info next to it; the app doesn't need them.
 Remove-Item (Join-Path $PSScriptRoot "DivHook.lib"), (Join-Path $PSScriptRoot "DivHook.pdb") -ErrorAction SilentlyContinue
