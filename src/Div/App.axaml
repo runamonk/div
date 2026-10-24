@@ -122,6 +122,7 @@
                         <NativeMenuItemSeparator />
                         <NativeMenuItem Header="Reload settings" Click="ReloadSettings_Click" />
                         <NativeMenuItem Header="Open settings folder" Click="OpenFolder_Click" />
+                        <NativeMenuItem Header="Check for updates..." Click="CheckForUpdates_Click" />
                         <NativeMenuItemSeparator />
                         <NativeMenuItem Header="Exit" Click="Exit_Click" />
                     </NativeMenu>

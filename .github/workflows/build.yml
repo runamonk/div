@@ -33,6 +33,12 @@ jobs:
       - name: Publish
         run: dotnet publish src/Div -c Release -r win-x64 --self-contained true -p:Version=${{ env.VERSION }} -o artifacts/Div
 
+      - name: Publish updater
+        shell: pwsh
+        run: |
+          dotnet publish src/Div.Updater -c Release -p:Version=${{ env.VERSION }} -o artifacts/updater
+          Copy-Item artifacts/updater/DivUpdater.exe artifacts/Div/
+
       - name: Zip
         shell: pwsh
         run: Compress-Archive artifacts/Div/* Div-${{ env.VERSION }}-win-x64.zip

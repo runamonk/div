@@ -16,6 +16,7 @@ public partial class App : Application
     Hotkey? _editorHotkey;
     readonly List<Hotkey> _quickKeys = [];
     ArrowKeyHook? _arrowKeys;
+    Updates? _updates;
 
     public override void Initialize()
     {
@@ -34,13 +35,16 @@ public partial class App : Application
                 _editorHotkey?.Dispose();
                 _arrowKeys?.Dispose();
                 foreach (var hotkey in _quickKeys) hotkey.Dispose();
+                _updates?.Dispose();
+                _updates?.StartInstaller();
             };
 
             LoadSettings();
             _watcher = new WindowWatcher(() => _settings);
             _watcher.Start();
-            Log.Write(Elevation.IsAdmin ? "Started (as admin)." : "Started.");
-            if (Elevation.IsAdmin && TrayIcon.GetIcons(this)?.FirstOrDefault() is { } tray) tray.ToolTipText = "<div> (admin)";
+            Log.Write($"Started {Updates.AppVersion}{(Elevation.IsAdmin ? " (as admin)" : "")}.");
+            SetTrayStatus(null);
+            _updates = new Updates(() => _settings, SetTrayStatus, () => desktop.Shutdown());
 
             Rename.MoveStartup(_settings.RunAsAdmin && Elevation.IsAdmin);
             // Only an admin copy can set up (or take down) the admin kind of start-with-Windows.
@@ -151,6 +155,18 @@ public partial class App : Application
     }
 
     void Tray_Clicked(object? sender, EventArgs e) => ShowLayouts();
+
+    // Version, admin, and what the updater's up to, if anything.
+    void SetTrayStatus(string? status)
+    {
+        if (TrayIcon.GetIcons(this)?.FirstOrDefault() is not { } tray) return;
+        tray.ToolTipText = $"<div> {Updates.AppVersion}{(Elevation.IsAdmin ? " (admin)" : "")}{(status is null ? "" : " - " + status)}";
+    }
+
+    async void CheckForUpdates_Click(object? sender, EventArgs e)
+    {
+        if (_updates is not null) await _updates.CheckNow();
+    }
 
     void EditLayouts_Click(object? sender, EventArgs e) => ShowLayouts();
 

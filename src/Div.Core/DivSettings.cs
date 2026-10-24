@@ -30,6 +30,8 @@ public sealed class DivSettings
     public bool OverrideWinArrows { get; set; }
     // Maximizing a window fills its zone instead of the screen; with Shift held it's the whole screen.
     public bool MaximizeToZone { get; set; } = true;
+    // Look for a newer <div> on GitHub shortly after starting and once a day.
+    public bool CheckForUpdates { get; set; } = true;
     // Square off Windows 11's rounded corners on windows sitting in a zone.
     public bool SquareCorners { get; set; }
 

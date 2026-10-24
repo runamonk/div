@@ -23,6 +23,7 @@ public partial class SettingsWindow : Window
 
         StartWithWindowsBox.IsChecked = Startup.IsEnabled;
         RunAsAdminBox.IsChecked = settings.RunAsAdmin;
+        CheckForUpdatesBox.IsChecked = settings.CheckForUpdates;
         SnapWithShiftBox.IsChecked = settings.SnapWithShift;
         RestoreSizeBox.IsChecked = settings.RestoreSizeOnUnsnap;
         SquareCornersBox.IsChecked = settings.SquareCorners;
@@ -38,6 +39,7 @@ public partial class SettingsWindow : Window
     {
         bool wasAdminMode = _settings.RunAsAdmin;
         _settings.RunAsAdmin = RunAsAdminBox.IsChecked == true;
+        _settings.CheckForUpdates = CheckForUpdatesBox.IsChecked == true;
         _settings.SnapWithShift = SnapWithShiftBox.IsChecked == true;
         _settings.RestoreSizeOnUnsnap = RestoreSizeBox.IsChecked == true;
         _settings.SquareCorners = SquareCornersBox.IsChecked == true;

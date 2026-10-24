@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Div.Core/Div.Core.csproj" />
     <Project Path="src/Div/Div.csproj" />
+    <Project Path="src/Div.Updater/Div.Updater.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Div.Tests/Div.Tests.csproj" />

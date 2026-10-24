@@ -68,6 +68,12 @@ dotnet test
 
 `publish.cmd` makes a self-contained release build.
 
+Pushing a tag like `v1.2.3` makes GitHub build a release (`.github/workflows/build.yml`).
+Release builds look for newer releases shortly after starting and once a day (*Check for updates
+automatically* in Settings, or *Check for updates...* in the tray menu), download them, check the
+checksum, and install them with `DivUpdater.exe` when `<div>` exits. Local builds are version
+`0.0.0-dev` and never update.
+
 Maximize-to-zone needs a small native helper, `native/DivHook.c`, which `<div>`
 loads into the apps whose windows it manages (never into everything, and never into games). The
 built DLL is committed; after changing the C file, rebuild it with `pwsh native/build.ps1`, which

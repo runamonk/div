@@ -27,6 +27,8 @@
                 <CheckBox x:Name="StartWithWindowsBox" Content="Start with Windows" />
                 <CheckBox x:Name="RunAsAdminBox" Content="Run as administrator" Margin="0,6,0,0" />
                 <TextBlock Classes="note" Text="So apps that run as admin get managed too. Windows asks for permission when you start it; with Start with Windows on, it starts at sign-in without asking. Turning it off takes effect next time it starts." />
+                <CheckBox x:Name="CheckForUpdatesBox" Content="Check for updates automatically" Margin="0,6,0,0" />
+                <TextBlock Classes="note" Text="Shortly after it starts and once a day. It only asks when there's a new version; Check for updates in the tray menu looks right away." />
 
                 <TextBlock Classes="section" Text="Snapping" />
                 <CheckBox x:Name="SnapWithShiftBox" Content="Snap windows to zones while dragging (hold Shift)" />

@@ -9,6 +9,7 @@
     <AssemblyTitle>&lt;div&gt;</AssemblyTitle>
     <Product>&lt;div&gt;</Product>
     <Description>Puts windows back where they belong.</Description>
+    <!-- Release builds get the tag's version from CI; anything else is a dev build that never updates. -->
     <Version>0.0.0-dev</Version>
     <!-- Compile ahead of time when publishing: faster start, and the hooks never wait on the JIT. -->
     <PublishReadyToRun>true</PublishReadyToRun>
