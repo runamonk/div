@@ -84,9 +84,3 @@ The icon and logos are drawn by `branding/make_branding.py` (needs Pillow):
 - Maximize-to-zone skips 32-bit apps, and apps that don't support display scaling on a scaled
   monitor; those maximize to the whole screen.
 - Don't run it alongside FancyZones; two window managers fighting over the same drag isn't pretty.
-
-## Formerly Window Wrangler
-
-It used to be called Window Wrangler. The first time `<div>` starts, it moves your settings,
-layouts and history over from `%AppData%\WindowWrangler`, closes the old app if it's still
-running, and swaps its start-with-Windows entry for its own.
