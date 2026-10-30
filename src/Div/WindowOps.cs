@@ -9,7 +9,8 @@ static class WindowOps
 {
     // Normal resizable app windows only: no dialogs, popups, tool windows or hidden UWP frames.
     // Maximized windows are skipped unless asked: dragging one un-maximizes it, so that's fine to snap.
-    public static bool IsCandidate(IntPtr hwnd, bool allowMaximized = false)
+    // Cloaked ones too if asked: an app can open a window cloaked while it finishes drawing it.
+    public static bool IsCandidate(IntPtr hwnd, bool allowMaximized = false, bool allowCloaked = false)
     {
         if (!IsWindowVisible(hwnd) || IsIconic(hwnd) || (IsZoomed(hwnd) && !allowMaximized)) return false;
         if (GetAncestor(hwnd, GA_ROOT) != hwnd || GetWindow(hwnd, GW_OWNER) != IntPtr.Zero) return false;
@@ -19,7 +20,7 @@ static class WindowOps
         if ((style & WS_CHILD) != 0 || (style & WS_CAPTION) != WS_CAPTION || (style & WS_THICKFRAME) == 0) return false;
         if ((exStyle & WS_EX_TOOLWINDOW) != 0) return false;
 
-        return !IsCloaked(hwnd);
+        return allowCloaked || !IsCloaked(hwnd);
     }
 
     static bool IsCloaked(IntPtr hwnd) =>
@@ -56,8 +57,24 @@ static class WindowOps
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
     }
 
+    // Store apps (Settings, Xbox, Calculator...) all live in frames owned by ApplicationFrameHost,
+    // so name them after the app inside instead. While suspended there's no app inside, and it's
+    // ApplicationFrameHost after all.
+    // Windows animates a window going in and out of maximized; this switches that off for it.
+    public static void SetAnimations(IntPtr hwnd, bool on)
+    {
+        int disabled = on ? 0 : 1;
+        DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, ref disabled, sizeof(int));
+    }
+
     public static string GetProcessName(IntPtr hwnd)
     {
+        var className = new System.Text.StringBuilder(64);
+        GetClassName(hwnd, className, className.Capacity);
+        if (className.ToString() == "ApplicationFrameWindow" &&
+            FindWindowEx(hwnd, IntPtr.Zero, "Windows.UI.Core.CoreWindow", null) is var app && app != IntPtr.Zero)
+            hwnd = app;
+
         GetWindowThreadProcessId(hwnd, out uint pid);
         try
         {

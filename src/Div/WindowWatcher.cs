@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia.Threading;
 using Div.Core;
 using static Div.Native;
@@ -137,6 +138,9 @@ sealed class WindowWatcher : IDisposable
         // Full checks wait until it settles; styles and cloaking can change right after showing.
         _pending[hwnd] = new Pending { LastFrame = WindowOps.GetVisibleFrame(hwnd) };
         _timer.Start();
+        // Opened maximized: deal with it now, while it's usually still cloaked, so it shows up in its
+        // zone instead of full screen first.
+        if (IsZoomed(hwnd)) OpenedMaximized(hwnd);
     }
 
     void OnTick(object? sender, EventArgs e)
@@ -160,7 +164,9 @@ sealed class WindowWatcher : IDisposable
                 pending.LastFrame = frame;
             }
 
-            bool settled = pending.StillTicks >= SettleTicks;
+            // Opened maximized: it isn't going anywhere, and the sooner it's in its zone the less of
+            // it full screen you see.
+            bool settled = pending.StillTicks >= SettleTicks || IsZoomed(hwnd);
             if (!settled && pending.WaitedMs < MaxWaitMs) continue;
 
             _pending.Remove(hwnd);
@@ -171,11 +177,11 @@ sealed class WindowWatcher : IDisposable
             if (Paused) continue;
             // Settled or still shifting after the wait, have a go; just never while the mouse is down,
             // since that may be the user dragging it.
-            if (!mouseDown) Correct(hwnd, atLaunch: true);
+            if (!mouseDown && !OpenedMaximized(hwnd)) Correct(hwnd, atLaunch: true);
             foreach (int ms in FollowUpMs)
                 DispatcherTimer.RunOnce(() =>
                 {
-                    if (IsWindow(hwnd) && !Paused && !WindowOps.IsMouseDown()) Correct(hwnd);
+                    if (IsWindow(hwnd) && !Paused && !WindowOps.IsMouseDown() && !OpenedMaximized(hwnd)) Correct(hwnd);
                 }, TimeSpan.FromMilliseconds(ms));
         }
 
@@ -221,6 +227,55 @@ sealed class WindowWatcher : IDisposable
 
         Move(hwnd, name, frame, zone, "restored");
         Remember(hwnd, monitor, zone);
+        return true;
+    }
+
+    // Apps that remember being maximized open maximized over the whole screen. So do Settings and
+    // other Store apps that were closed filling a zone: Windows takes a window that tall for a
+    // maximized one. Put it in the zone maximizing would have picked instead, the one under the
+    // middle of where it un-maximizes to. Cloaked is fine: then it's in its zone before it shows.
+    bool OpenedMaximized(IntPtr hwnd)
+    {
+        var settings = _settings();
+        if (!IsZoomed(hwnd) || !settings.MaximizeToZone || !IsManaged(hwnd, out var name, allowMaximized: true, allowCloaked: true))
+            return false;
+        var monitor = Monitors.FromWindow(hwnd);
+        if (WindowOps.GetVisibleFrame(hwnd) != monitor.WorkArea) return false;
+
+        // Where it un-maximizes to, in work area coordinates, invisible borders and all.
+        var placement = new WINDOWPLACEMENT { Length = Marshal.SizeOf<WINDOWPLACEMENT>() };
+        if (!GetWindowPlacement(hwnd, ref placement)) return false;
+        int dx = monitor.WorkArea.Left - monitor.Bounds.Left, dy = monitor.WorkArea.Top - monitor.Bounds.Top;
+        var normal = placement.NormalPosition;
+        var restored = new Rect(normal.Left + dx, normal.Top + dy, normal.Right + dx, normal.Bottom + dy);
+        var zones = settings.LayoutFor(monitor.Id)?.GetZones(monitor.WorkArea) ?? [];
+        if (ZoneMatcher.MaximizeTarget(restored, zones, 4) is not { } zone) return false;
+
+        // Un-maximize straight into the zone in one go. Its invisible borders as a normal window can't
+        // be measured while it's maximized, so work them out from its style the way Windows does,
+        // less the 1px edge that shows; the recheck below fixes anything a pixel off.
+        var frame = new RECT();
+        long style = (long)GetWindowLongPtr(hwnd, GWL_STYLE), exStyle = (long)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        if (!AdjustWindowRectExForDpi(ref frame, (uint)style, false, (uint)exStyle, GetDpiForWindow(hwnd))) return false;
+        int side = Math.Max(-frame.Left - 1, 0), bottom = Math.Max(frame.Bottom - 1, 0);
+        placement.NormalPosition = new RECT
+        {
+            Left = zone.Left - side - dx, Top = zone.Top - dy,
+            Right = zone.Right + side - dx, Bottom = zone.Bottom + bottom - dy,
+        };
+        placement.ShowCmd = SW_SHOWNOACTIVATE;
+        placement.Flags = 0;
+        // Without the restore animation, which is most of what you'd see.
+        WindowOps.SetAnimations(hwnd, false);
+        bool placed = SetWindowPlacement(hwnd, ref placement);
+        DispatcherTimer.RunOnce(() => { if (IsWindow(hwnd)) WindowOps.SetAnimations(hwnd, true); }, TimeSpan.FromMilliseconds(RecheckMs));
+        if (!placed) return false;
+
+        // Its own size, for dragging it out of the zone or maximizing it back out.
+        _snapped[hwnd] = (zone, restored.Width - 2 * side, restored.Height - bottom);
+        Remember(hwnd, monitor, zone);
+        Log.Write($"{name}: opened maximized, put in its zone {zone}");
+        DispatcherTimer.RunOnce(() => { if (IsWindow(hwnd)) Correct(hwnd); }, TimeSpan.FromMilliseconds(RecheckMs));
         return true;
     }
 
@@ -412,10 +467,10 @@ sealed class WindowWatcher : IDisposable
         }
     }
 
-    bool IsManaged(IntPtr hwnd, out string name, bool allowMaximized = false)
+    bool IsManaged(IntPtr hwnd, out string name, bool allowMaximized = false, bool allowCloaked = false)
     {
         name = "";
-        if (!WindowOps.IsCandidate(hwnd, allowMaximized) || !WindowOps.CanMove(hwnd)) return false;
+        if (!WindowOps.IsCandidate(hwnd, allowMaximized, allowCloaked) || !WindowOps.CanMove(hwnd)) return false;
         name = WindowOps.GetProcessName(hwnd);
         return !_settings().IsExcluded(name);
     }
@@ -436,10 +491,17 @@ sealed class WindowWatcher : IDisposable
     void Remember(IntPtr hwnd, MonitorInfo monitor, Rect zone)
     {
         var placement = new Placement(monitor.Id, zone);
+        var app = WindowOps.GetAppKey(hwnd);
         bool had = _owned.TryGetValue(hwnd, out var old);
+        // A Store app's real name can turn up after its window does (see GetProcessName); move its
+        // spot over to it.
+        if (had && old.App != app)
+        {
+            _history.Forget(old.App, old.Placement);
+            had = false;
+        }
         if (had && old.Placement == placement) return;
 
-        var app = had ? old.App : WindowOps.GetAppKey(hwnd);
         _history.Record(app, placement, had ? old.Placement : null);
         _owned[hwnd] = (app, placement);
         SaveHistory();
