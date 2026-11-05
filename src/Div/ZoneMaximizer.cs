@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using Microsoft.Win32;
 using Div.Core;
 using static Div.Native;
 
@@ -22,6 +23,10 @@ sealed class ZoneMaximizer : IDisposable
     // reused thread id isn't mistaken for one we've already hooked.
     readonly Dictionary<uint, (uint Process, IntPtr Hook, IntPtr Cbt)> _hooks = [];
     readonly HashSet<IntPtr> _tagged = [];
+    // Exe paths of the games Windows knows about, and when that list was last read.
+    HashSet<string> _games = new(StringComparer.OrdinalIgnoreCase);
+    DateTime _gamesRead;
+    readonly HashSet<string> _toldAboutGame = new(StringComparer.OrdinalIgnoreCase);
 
     public ZoneMaximizer()
     {
@@ -120,7 +125,9 @@ sealed class ZoneMaximizer : IDisposable
 
     // The DLL can only go into 64-bit apps (we're 64-bit). And DPI-unaware apps on a scaled monitor
     // see made-up coordinates, which would put the zone in the wrong place, so they're left alone.
-    static bool CanHelp(IntPtr hwnd)
+    // And never games: anti-cheat watches for DLLs going into the game, and getting someone banned
+    // for a maximize button isn't worth it. Their windows are still snapped and moved from outside.
+    bool CanHelp(IntPtr hwnd)
     {
         GetWindowThreadProcessId(hwnd, out uint pid);
         var process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
@@ -128,6 +135,10 @@ sealed class ZoneMaximizer : IDisposable
         try
         {
             if (!IsWow64Process(process, out bool is32Bit) || is32Bit) return false;
+            var path = new System.Text.StringBuilder(1024);
+            uint size = (uint)path.Capacity;
+            // Can't tell what it is: don't risk it.
+            if (!QueryFullProcessImageName(process, 0, path, ref size) || IsGame(path.ToString())) return false;
         }
         finally
         {
@@ -137,6 +148,40 @@ sealed class ZoneMaximizer : IDisposable
         bool unaware = GetAwarenessFromDpiAwarenessContext(GetWindowDpiAwarenessContext(hwnd)) == DPI_AWARENESS_UNAWARE;
         bool scaled = GetDpiForMonitor(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), MDT_EFFECTIVE_DPI, out uint dpi, out _) == 0 && dpi != 96;
         return !(unaware && scaled);
+    }
+
+    // Windows' own list of games, the one Game Bar keeps. A game is added the first time it runs, so
+    // an exe that isn't on it gets the list read again, at most every 30 seconds.
+    bool IsGame(string exe)
+    {
+        if (!_games.Contains(exe) && DateTime.UtcNow - _gamesRead > TimeSpan.FromSeconds(30))
+        {
+            _games = ReadGames();
+            _gamesRead = DateTime.UtcNow;
+        }
+        if (!_games.Contains(exe)) return false;
+        if (_toldAboutGame.Add(exe)) Log.Write($"Leaving the maximize helper out of {Path.GetFileName(exe)}: Windows lists it as a game.");
+        return true;
+    }
+
+    static HashSet<string> ReadGames()
+    {
+        var games = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var store = Registry.CurrentUser.OpenSubKey(@"System\GameConfigStore\Children");
+            if (store is null) return games;
+            foreach (var name in store.GetSubKeyNames())
+            {
+                using var game = store.OpenSubKey(name);
+                if (game?.GetValue("MatchedExeFullPath") is string path) games.Add(path);
+            }
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            Log.Write($"Couldn't read Windows' list of games: {ex.Message}");
+        }
+        return games;
     }
 
     bool Hook(IntPtr hwnd)

@@ -89,6 +89,9 @@ static class Native
     }
 
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+    [DllImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", CharSet = CharSet.Unicode)]
+    public static extern bool QueryFullProcessImageName(IntPtr process, uint flags, System.Text.StringBuilder path, ref uint size);
     public const uint TOKEN_QUERY = 0x0008;
     public const int TokenElevation = 20;
 
