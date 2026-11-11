@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Div.Core;
 
@@ -14,6 +15,13 @@ public sealed class AppHistory
     const int SameTolerance = 8;
 
     static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    static readonly Regex Guid = new("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", RegexOptions.Compiled);
+
+    // Which app a window belongs to: its process and window class. Some frameworks (Avalonia, for one)
+    // put a new GUID in the class name of every window, so that's left out or nothing would match.
+    public static string AppKey(string process, string windowClass) => WithoutGuids($"{process}|{windowClass}");
+
+    static string WithoutGuids(string key) => Guid.Replace(key, "*");
 
     public Dictionary<string, List<Placement>> Apps { get; set; } = [];
 
@@ -50,6 +58,14 @@ public sealed class AppHistory
             if (history?.Apps is null) return new AppHistory();
             foreach (var key in history.Apps.Where(kv => kv.Value is null).Select(kv => kv.Key).ToList())
                 history.Apps.Remove(key);
+            // Older keys kept those GUIDs, one entry per window; fold them into the app's.
+            foreach (var (key, list) in history.Apps.ToList())
+            {
+                var app = WithoutGuids(key);
+                if (app == key) continue;
+                history.Apps.Remove(key);
+                foreach (var placement in Enumerable.Reverse(list)) history.Record(app, placement);
+            }
             return history;
         }
         catch (JsonException)

@@ -93,7 +93,7 @@ static class WindowOps
     {
         var className = new System.Text.StringBuilder(256);
         GetClassName(hwnd, className, className.Capacity);
-        return $"{GetProcessName(hwnd)}|{className}";
+        return AppHistory.AppKey(GetProcessName(hwnd), className.ToString());
     }
 
     // Windows won't let a normal process move an admin app's windows, so don't try; leave them

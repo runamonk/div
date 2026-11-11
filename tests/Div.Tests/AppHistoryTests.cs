@@ -123,4 +123,31 @@ public sealed class AppHistoryTests : IDisposable
 
         Assert.Empty(AppHistory.Load(path).Apps);
     }
+
+    [Fact]
+    public void AppKey_IgnoresGuidsInTheWindowClass()
+    {
+        // Avalonia gives every window a class like this, with a new GUID each time.
+        var first = AppHistory.AppKey("ShareX", "Avalonia-e78c5439-c2cb-44d1-9688-8c61fda41722");
+        var second = AppHistory.AppKey("ShareX", "Avalonia-3baff837-88d4-44b0-b168-2b09d280d458");
+
+        Assert.Equal(first, second);
+        Assert.Equal("chrome|Chrome_WidgetWin_1", AppHistory.AppKey("chrome", "Chrome_WidgetWin_1"));
+    }
+
+    [Fact]
+    public void Load_FoldsOldGuidKeysIntoOne()
+    {
+        var path = Path.Combine(_folder, "history.json");
+        var old = new AppHistory();
+        old.Record("ShareX|Avalonia-e78c5439-c2cb-44d1-9688-8c61fda41722", Left);
+        old.Record("ShareX|Avalonia-3baff837-88d4-44b0-b168-2b09d280d458", Right);
+        old.Save(path);
+
+        var loaded = AppHistory.Load(path);
+
+        var key = Assert.Single(loaded.Apps.Keys);
+        Assert.Equal(AppHistory.AppKey("ShareX", "Avalonia-e78c5439-c2cb-44d1-9688-8c61fda41722"), key);
+        Assert.Equal(2, loaded.Apps[key].Count);
+    }
 }

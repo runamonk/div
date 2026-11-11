@@ -141,6 +141,9 @@ sealed class WindowWatcher : IDisposable
         // Opened maximized: deal with it now, while it's usually still cloaked, so it shows up in its
         // zone instead of full screen first.
         if (IsZoomed(hwnd)) OpenedMaximized(hwnd);
+        // Otherwise have a first go now too, rather than leaving it in the wrong spot until it
+        // settles. If the app moves it again after this, settling has another go.
+        else if (!WindowOps.IsMouseDown()) Correct(hwnd, atLaunch: true);
     }
 
     void OnTick(object? sender, EventArgs e)
