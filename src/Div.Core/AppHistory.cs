@@ -19,7 +19,10 @@ public sealed class AppHistory
 
     // Which app a window belongs to: its process and window class. Some frameworks (Avalonia, for one)
     // put a new GUID in the class name of every window, so that's left out or nothing would match.
-    public static string AppKey(string process, string windowClass) => WithoutGuids($"{process}|{windowClass}");
+    // Plus the window's own app ID if it has one, so a browser's web apps aren't the browser. Those
+    // IDs can be GUIDs too, but they stay put, so they're kept.
+    public static string AppKey(string process, string windowClass, string? appId = null) =>
+        WithoutGuids($"{process}|{windowClass}") + (string.IsNullOrEmpty(appId) ? "" : $"|{appId}");
 
     static string WithoutGuids(string key) => Guid.Replace(key, "*");
 
@@ -61,7 +64,9 @@ public sealed class AppHistory
             // Older keys kept those GUIDs, one entry per window; fold them into the app's.
             foreach (var (key, list) in history.Apps.ToList())
             {
-                var app = WithoutGuids(key);
+                var parts = key.Split('|', 3);
+                if (parts.Length < 2) continue;
+                var app = AppKey(parts[0], parts[1], parts.Length > 2 ? parts[2] : null);
                 if (app == key) continue;
                 history.Apps.Remove(key);
                 foreach (var placement in Enumerable.Reverse(list)) history.Record(app, placement);

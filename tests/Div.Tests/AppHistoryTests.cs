@@ -150,4 +150,24 @@ public sealed class AppHistoryTests : IDisposable
         Assert.Equal(AppHistory.AppKey("ShareX", "Avalonia-e78c5439-c2cb-44d1-9688-8c61fda41722"), key);
         Assert.Equal(2, loaded.Apps[key].Count);
     }
+
+    [Fact]
+    public void AppKey_KeepsWebAppsApart()
+    {
+        // Firefox web apps: same process and class as the browser, each with its own app ID.
+        var gmail = AppHistory.AppKey("firefox", "MozillaWindowClass", "3ccdc18e-2935-42b3-8ff7-1e5aee1daa14");
+        var whatsApp = AppHistory.AppKey("firefox", "MozillaWindowClass", "cd7892f7-80ff-41b8-9a66-7bd4067a1f92");
+        var browser = AppHistory.AppKey("firefox", "MozillaWindowClass", "308046B0AF4A39CB");
+
+        Assert.Equal(3, new[] { gmail, whatsApp, browser }.Distinct().Count());
+
+        // And loading doesn't mistake their IDs for the GUIDs it folds away.
+        var path = Path.Combine(_folder, "history.json");
+        var saved = new AppHistory();
+        saved.Record(gmail, Left);
+        saved.Record(whatsApp, Right);
+        saved.Save(path);
+
+        Assert.Equal(2, AppHistory.Load(path).Apps.Count);
+    }
 }

@@ -93,7 +93,27 @@ static class WindowOps
     {
         var className = new System.Text.StringBuilder(256);
         GetClassName(hwnd, className, className.Capacity);
-        return AppHistory.AppKey(GetProcessName(hwnd), className.ToString());
+        return AppHistory.AppKey(GetProcessName(hwnd), className.ToString(), GetAppId(hwnd));
+    }
+
+    // The app ID a window set for itself, if any. Firefox and Chrome web apps run in the browser's
+    // own process and class, and this is the only thing telling them apart from the browser.
+    static string? GetAppId(IntPtr hwnd)
+    {
+        var iid = typeof(IPropertyStore).GUID;
+        if (SHGetPropertyStoreForWindow(hwnd, ref iid, out var store) != 0) return null;
+        try
+        {
+            var key = PKEY_AppUserModel_ID;
+            if (store.GetValue(ref key, out var value) != 0) return null;
+            var id = value.vt == VT_LPWSTR ? Marshal.PtrToStringUni(value.pointer) : null;
+            PropVariantClear(ref value);
+            return string.IsNullOrEmpty(id) ? null : id;
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(store);
+        }
     }
 
     // Windows won't let a normal process move an admin app's windows, so don't try; leave them

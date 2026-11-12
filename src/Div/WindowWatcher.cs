@@ -142,8 +142,9 @@ sealed class WindowWatcher : IDisposable
         // zone instead of full screen first.
         if (IsZoomed(hwnd)) OpenedMaximized(hwnd);
         // Otherwise have a first go now too, rather than leaving it in the wrong spot until it
-        // settles. If the app moves it again after this, settling has another go.
-        else if (!WindowOps.IsMouseDown()) Correct(hwnd, atLaunch: true);
+        // settles. If the app moves it again after this, settling has another go. Cloaked is fine, and
+        // best: Firefox shows its windows cloaked and uncloaks them a few ms later.
+        else if (!WindowOps.IsMouseDown()) Correct(hwnd, atLaunch: true, allowCloaked: true);
     }
 
     void OnTick(object? sender, EventArgs e)
@@ -193,9 +194,9 @@ sealed class WindowWatcher : IDisposable
 
     public bool Correct(IntPtr hwnd) => Correct(hwnd, atLaunch: false);
 
-    bool Correct(IntPtr hwnd, bool atLaunch)
+    bool Correct(IntPtr hwnd, bool atLaunch, bool allowCloaked = false)
     {
-        if (!IsManaged(hwnd, out var name)) return false;
+        if (!IsManaged(hwnd, out var name, allowCloaked: allowCloaked)) return false;
 
         var settings = _settings();
         var frame = WindowOps.GetVisibleFrame(hwnd);
@@ -212,7 +213,15 @@ sealed class WindowWatcher : IDisposable
         }
 
         // Nowhere near a zone. Apps that remember their own spot don't end up here; the lazy ones do.
-        return atLaunch && settings.RestoreLastKnown && RestoreLastKnown(hwnd, name, frame, settings);
+        if (!atLaunch) return false;
+        if (settings.RestoreLastKnown && RestoreLastKnown(hwnd, name, frame, settings)) return true;
+
+        // Apps like Firefox open another window a little down and right of the last one, too far off
+        // to nudge. If it's still nearly all one zone, that's where it was meant to be.
+        if (ZoneMatcher.BestOverlap(frame, zones, 0.9) is not { } cascaded) return false;
+        Move(hwnd, name, frame, cascaded, "nudged");
+        Remember(hwnd, monitor, cascaded);
+        return true;
     }
 
     bool RestoreLastKnown(IntPtr hwnd, string name, Rect frame, DivSettings settings)
