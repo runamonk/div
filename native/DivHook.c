@@ -41,9 +41,9 @@
 // Versioned: windows subclassed by an older copy keep it until their app restarts, and a newer
 // copy has to be able to go in front of it (and so get the last word) rather than think it's done.
 // Bump this whenever answer_with_zone changes.
-#define OLD_PROC_PROPERTY L"Div.OldWndProc.2"
+#define OLD_PROC_PROPERTY L"Div.OldWndProc.3"
 // Set on windows that use the older ANSI text mode, so we pass their messages on the same way.
-#define ANSI_PROPERTY L"Div.Ansi.2"
+#define ANSI_PROPERTY L"Div.Ansi.3"
 // Set while a window is maximized to the whole screen on purpose (Shift was held), so later
 // placements while it stays maximized are left alone too.
 #define FULL_SCREEN_PROPERTY L"Div.FullScreen"
@@ -119,6 +119,14 @@ static BOOL close_to(RECT a, RECT b)
     return abs(a.left - b.left) <= 4 && abs(a.top - b.top) <= 4 && abs(a.right - b.right) <= 4 && abs(a.bottom - b.bottom) <= 4;
 }
 
+// Ours, posted to a window to recheck its frame later.
+static UINT recheck_message(void)
+{
+    static volatile UINT message = 0;
+    if (!message) message = RegisterWindowMessageW(L"Div.RecheckFrame");
+    return message;
+}
+
 // The maximize command. Instead of maximizing, move the window into its zone as a normal window,
 // remembering where it was; if it's already there, put it back. FALSE to let it maximize as usual.
 static BOOL maximize_command(HWND hwnd)
@@ -171,6 +179,10 @@ static BOOL maximize_command(HWND hwnd)
     }
     SetWindowPos(hwnd, NULL, target.left, target.top, target.right - target.left, target.bottom - target.top,
                  SWP_NOZORDER | SWP_NOACTIVATE);
+    // Some apps (Firefox) count themselves maximized before asking, and miss that it didn't happen:
+    // they keep a maximized window's frame, a strip along the top. Once the app's done, have it
+    // look at its frame again.
+    PostMessageW(hwnd, recheck_message(), 0, 0);
     return TRUE;
 }
 
@@ -271,6 +283,11 @@ static LRESULT CALLBACK zone_window_proc(HWND hwnd, UINT message, WPARAM wParam,
     if (message == WM_SYSCOMMAND && (wParam & 0xFFF0) == SC_MAXIMIZE && maximize_command(hwnd)) return 0;
     // Moved or resized by hand since: "back to where it was" no longer makes sense.
     if (message == WM_EXITSIZEMOVE) RemovePropW(hwnd, BEFORE_PROPERTY);
+    if (message == recheck_message() && message)
+    {
+        SetWindowPos(hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        return 0;
+    }
 
     // The app has its say first; we get the last word. (Nothing we touch involves text, so ANSI
     // and Unicode windows are handled the same; they just get their messages passed on their way.)
